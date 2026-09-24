@@ -153,10 +153,12 @@ async def test_malformed_bodies_are_bad_requests(
     assert _codes(error) == [(None, "invalid_body")]
 
 
-async def test_bodies_over_32_kb_are_refused(client: httpx.AsyncClient):
+@pytest.mark.parametrize("method", ["POST", "PUT"])
+async def test_bodies_over_32_kb_are_refused(client: httpx.AsyncClient, method: str):
     oversized = {**VALID_INPUT, "address_line_1": "x" * (33 * 1024)}
+    path = "/patients" if method == "POST" else f"/patients/{uuid4()}"
 
-    error = expect(await client.post("/patients", json=oversized), 413)
+    error = expect(await client.request(method, path, json=oversized), 413)
 
     assert error["code"] == "PAYLOAD_TOO_LARGE"
 
@@ -244,8 +246,20 @@ async def test_get_by_id(client: httpx.AsyncClient):
     assert expect(await client.get(f"/patients/{patient['patient_id']}"), 200) == patient
 
 
-async def test_a_malformed_id_is_a_bad_request(client: httpx.AsyncClient):
-    error = expect(await client.get("/patients/not-a-uuid"), 400)
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("GET", "/patients/not-a-uuid"),
+        ("PUT", "/patients/not-a-uuid"),
+        ("DELETE", "/patients/not-a-uuid"),
+        ("GET", "/patients/not-a-uuid/calls"),
+        ("GET", "/patients/not-a-uuid/appointments"),
+    ],
+)
+async def test_a_malformed_id_is_a_bad_request(client: httpx.AsyncClient, method: str, path: str):
+    body = {"city": "Dallas"} if method == "PUT" else None
+
+    error = expect(await client.request(method, path, json=body), 400)
 
     assert error["message"] == "patient_id must be a UUID."
     assert _codes(error) == [("patient_id", "invalid_parameter")]

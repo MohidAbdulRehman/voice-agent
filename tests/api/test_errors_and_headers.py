@@ -14,16 +14,22 @@ from tests.api.conftest import build_app, client_for
 from tests.api.envelope import expect
 from tests.cases import VALID_INPUT
 
+ID = "00000000-0000-4000-8000-000000000001"
+DATABASE_ROUTES = [
+    ("GET", "/patients", None),
+    ("POST", "/patients", VALID_INPUT),
+    ("GET", f"/patients/{ID}", None),
+    ("PUT", f"/patients/{ID}", {"city": "Dallas"}),
+    ("DELETE", f"/patients/{ID}", None),
+    ("GET", f"/patients/{ID}/calls", None),
+    ("GET", f"/patients/{ID}/appointments", None),
+    ("GET", "/calls", None),
+    ("GET", f"/calls/{ID}", None),
+    ("GET", "/doctors", None),
+]
 
-@pytest.mark.parametrize(
-    ("method", "path", "body"),
-    [
-        ("GET", "/patients", None),
-        ("POST", "/patients", VALID_INPUT),
-        ("GET", "/calls", None),
-        ("GET", "/doctors", None),
-    ],
-)
+
+@pytest.mark.parametrize(("method", "path", "body"), DATABASE_ROUTES)
 async def test_a_database_outage_is_a_500_database_error(
     unreachable: Services, tmp_path: Path, method: str, path: str, body: dict | None
 ):
