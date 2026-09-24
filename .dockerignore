@@ -1,0 +1,18 @@
+# Keep secrets, local state and build output out of every Docker build context.
+.env
+.env.*
+!.env.example
+docs/private/
+.git/
+.github/
+.venv/
+**/__pycache__/
+.pytest_cache/
+.ruff_cache/
+dashboard/node_modules/
+dashboard/dist/
+src/intake/api/static/
+tests/
+recordings/
+*.log
+*.wav

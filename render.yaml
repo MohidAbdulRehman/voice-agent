@@ -1,0 +1,29 @@
+# Render Blueprint: the REST API and the dashboard as one free Docker web service.
+# Spec: https://render.com/docs/blueprint-spec
+#
+# Secrets (sync: false) are typed into the Render dashboard when the Blueprint is
+# first applied; they are never committed. The dashboard is served from the same
+# origin as the API, so production needs no CORS origins.
+services:
+  - type: web
+    name: patient-intake-api
+    runtime: docker
+    plan: free
+    region: virginia # the Render region closest to the Supabase project; can't change later
+    dockerfilePath: ./Dockerfile.api
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL # Supabase session pooler URL (port 5432)
+        sync: false
+      - key: PUBLIC_PHONE_NUMBER # shown on the dashboard banner, e.g. +15125550100
+        sync: false
+      - key: CLINIC_NAME
+        value: Riverside Family Clinic
+      - key: AGENT_PERSONA_NAME
+        value: Maya
+      - key: CLINIC_TIMEZONE
+        value: America/New_York
+      - key: LOG_LEVEL
+        value: INFO
