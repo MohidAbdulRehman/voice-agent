@@ -9,6 +9,7 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "sqlalchemy[asyncio]>=2.0.54",
     "structlog>=26.1.0",
+    "tzdata>=2026.4",
 ]
 
 [build-system]

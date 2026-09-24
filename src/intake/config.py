@@ -7,6 +7,7 @@ validation errors; call ``get_secret_value()`` only where the secret is used.
 
 from functools import lru_cache
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import PositiveInt, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -73,6 +74,20 @@ class Settings(BaseSettings):
     @classmethod
     def _uppercase_log_level(cls, value: object) -> object:
         return value.upper() if isinstance(value, str) else value
+
+    @field_validator("clinic_timezone")
+    @classmethod
+    def _known_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ValueError("not a known IANA time zone") from None
+        return value
+
+    @property
+    def clinic_zone(self) -> ZoneInfo:
+        """``CLINIC_TIMEZONE`` as a ``ZoneInfo``."""
+        return ZoneInfo(self.clinic_timezone)
 
     @property
     def cors_origins(self) -> list[str]:
