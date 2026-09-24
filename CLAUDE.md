@@ -93,7 +93,7 @@ Read the relevant document before coding that area. If code and a spec disagree,
 │   │   ├── repository.py       # async SQL access (parameterized); SIMULATE_DB_FAILURE hook
 │   │   └── services.py         # PatientService, CallService, SchedulingService
 │   ├── db/                     # engine/session, migrate.py, seed.py, check.py
-│   ├── api/                    # main.py, routes/, errors.py (envelope), ws.py (LISTEN → WebSocket)
+│   ├── api/                    # main.py, routes/, errors.py (envelope), schemas.py, middleware.py, ratelimit.py, ws.py (LISTEN → WebSocket)
 │   └── agent/
 │       ├── __main__.py         # entrypoint; LiveKit CLI (console/dev/start)
 │       ├── session.py          # STT/LLM/TTS/VAD/turn-detection/background-audio wiring
@@ -103,7 +103,7 @@ Read the relevant document before coding that area. If code and a spec disagree,
 │       ├── scripts.py          # fixed greeting/silence lines (EN/ES)
 │       └── prompts/system_prompt.md  +  loader.py
 ├── dashboard/                  # React app; built into src/intake/api/static/ for serving
-├── tests/{unit,db,api,agent,evals}/
+├── tests/{unit,db,api,agent,evals}/   # shared DB fixtures: tests/database.py
 ├── scripts/smoke.sh            # live API smoke check
 └── docs/specs/*.md   docs/private/ (gitignored)   docs/manual-test-log.md
 ```
@@ -124,10 +124,13 @@ uv run python -m intake.db.seed            # idempotent demo data (DATABASE_URL:
 uv run ruff check . && uv run ruff format --check .
 uv run pytest                              # unit + db + api + agent tool tests (local DB)
 uv run pytest -m evals                     # LLM-judged conversation evals: ASK FIRST (uses credits)
-uv run uvicorn intake.api.main:app --reload
+uv run uvicorn intake.api.main:app --reload   # API on :8000, docs at /docs (uses DATABASE_URL; see the local-DB note above)
 uv run python -m intake.agent console      # talk to the agent in the terminal (no phone minutes)
 uv run python -m intake.agent dev          # register with LiveKit Cloud (phone/playground)
-cd dashboard && npm install && npm run dev
+cd dashboard && npm install && npm run dev    # dashboard on :5173/dashboard/, proxying API calls to :8000
+cd dashboard && npm test && npm run build     # Vitest; typecheck + build into src/intake/api/static (served at /dashboard)
+docker build --file Dockerfile.api --tag intake-api .   # the Render image: API + built dashboard
+bash scripts/smoke.sh http://localhost:8000   # live API smoke check (curl + jq); run against the Render URL before submitting
 ```
 
 ## Phases (stop after each for human review)
