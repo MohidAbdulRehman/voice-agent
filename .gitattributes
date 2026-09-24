@@ -1,0 +1,3 @@
+# LF in the repository and in every checkout. Shell scripts and Docker builds break
+# on CRLF, and development also happens on Windows (where core.autocrlf is common).
+* text=auto eol=lf

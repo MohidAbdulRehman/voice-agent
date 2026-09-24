@@ -1,0 +1,73 @@
+[project]
+name = "patient-intake"
+version = "0.1.0"
+description = "Phone voice agent that registers new patients, with a REST API and a live dashboard."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "asyncpg>=0.31.0",
+    "pydantic-settings>=2.15.0",
+    "sqlalchemy[asyncio]>=2.0.54",
+    "structlog>=26.1.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.9,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "intake"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.8",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["docs"] # ruff also formats code blocks in Markdown; the specs keep their layout
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",  # pycodestyle, pyflakes
+    "I",            # import order
+    "N",            # naming
+    "UP",           # modern syntax for the target version
+    "B",            # likely bugs
+    "A",            # shadowed builtins
+    "C4",           # comprehensions
+    "SIM",          # simplifications
+    "RUF",          # ruff-specific checks
+    "S",            # security, including S608: SQL built from strings
+    "ASYNC",        # blocking calls inside async code
+    "DTZ",          # naive datetimes
+    "ANN",          # type hints everywhere
+    "D",            # docstrings on public functions
+    "TID",          # banned relative imports (tests/unit/test_layering.py relies on this)
+    "PT",           # pytest style
+]
+ignore = [
+    "E501",                          # the formatter owns line length
+    "D100", "D104", "D105", "D107",  # module, package, magic-method and __init__ docstrings
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "ANN", "D"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not evals"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "evals: LLM-judged conversation evals; opt-in because they spend LLM credits (uv run pytest -m evals)",
+]
