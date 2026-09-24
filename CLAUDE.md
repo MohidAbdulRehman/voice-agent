@@ -117,8 +117,10 @@ uv sync                                    # install
 docker compose up -d db                    # local Postgres 16 on 127.0.0.1:5433 (dbs: intake, intake_test)
 uv run python -m intake.db.check           # prints "ok" if DATABASE_URL connects (never prints the URL)
 uv run python -m intake.db.check --test    # same check for TEST_DATABASE_URL (local Docker)
-uv run python -m intake.db.migrate         # applies db/migrations/*.sql in order, tracked in schema_migrations
-uv run python -m intake.db.seed            # idempotent demo data
+uv run python -m intake.db.migrate         # applies db/migrations/*.sql in order, tracked in schema_migrations (DATABASE_URL: ask first)
+uv run python -m intake.db.seed            # idempotent demo data (DATABASE_URL: ask first)
+# Local dev DB instead of Supabase: set DATABASE_URL=postgresql://postgres:postgres@localhost:5433/intake for the command
+# (bash: prefix the command; PowerShell: $env:DATABASE_URL = "..."). --test targets TEST_DATABASE_URL.
 uv run ruff check . && uv run ruff format --check .
 uv run pytest                              # unit + db + api + agent tool tests (local DB)
 uv run pytest -m evals                     # LLM-judged conversation evals: ASK FIRST (uses credits)
