@@ -1,10 +1,12 @@
-"""Async SQLAlchemy engine for Postgres over asyncpg."""
+"""Async database access for Postgres over asyncpg: a SQLAlchemy engine, or a raw connection."""
 
+import asyncpg
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 _POSTGRES_DRIVERS = {"postgres", "postgresql", "postgresql+asyncpg"}
+CONNECT_TIMEOUT_SECONDS = 15
 
 
 def to_async_url(url: str) -> URL:
@@ -27,5 +29,15 @@ def to_async_url(url: str) -> URL:
 
 
 def make_engine(url: str) -> AsyncEngine:
-    """Create an async engine for a Postgres ``url`` in any of the accepted forms."""
-    return create_async_engine(to_async_url(url), pool_pre_ping=True)
+    """Create an async engine for a Postgres ``url`` in any of the accepted forms.
+
+    Statement parameters are hidden from error messages, so a failed write never
+    puts patient data into a log line.
+    """
+    return create_async_engine(to_async_url(url), pool_pre_ping=True, hide_parameters=True)
+
+
+async def connect(url: str) -> asyncpg.Connection:
+    """Open a raw asyncpg connection, for SQL scripts (migrations, seed) and LISTEN."""
+    dsn = to_async_url(url).set(drivername="postgresql").render_as_string(hide_password=False)
+    return await asyncpg.connect(dsn, timeout=CONNECT_TIMEOUT_SECONDS)

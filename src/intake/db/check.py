@@ -9,13 +9,12 @@ On failure it prints only the error class. It never prints the URL, which holds
 the password.
 """
 
-import argparse
 import asyncio
 import sys
 
 from sqlalchemy import text
 
-from intake.config import get_settings
+from intake.db.cli import target_database
 from intake.db.engine import make_engine
 
 TIMEOUT_SECONDS = 15
@@ -33,23 +32,14 @@ async def check(url: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     """Run the check from the command line and return the process exit code."""
-    parser = argparse.ArgumentParser(
-        prog="python -m intake.db.check",
-        description="Print 'ok' if the database answers SELECT 1.",
+    target = target_database(
+        "python -m intake.db.check", "Print 'ok' if the database answers SELECT 1.", argv
     )
-    parser.add_argument(
-        "--test", action="store_true", help="check TEST_DATABASE_URL instead of DATABASE_URL"
-    )
-    args = parser.parse_args(argv)
-
-    settings = get_settings()
-    name = "TEST_DATABASE_URL" if args.test else "DATABASE_URL"
-    url = settings.test_database_url if args.test else settings.database_url
-    if url is None:
-        print(f"error: {name} is not set", file=sys.stderr)
+    if target is None:
         return 1
+    name, url = target
     try:
-        asyncio.run(check(url.get_secret_value()))
+        asyncio.run(check(url))
     except Exception as exc:
         print(f"error: could not connect using {name} ({type(exc).__name__})", file=sys.stderr)
         return 1
