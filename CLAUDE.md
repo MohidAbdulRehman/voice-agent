@@ -76,11 +76,12 @@ Read the relevant document before coding that area. If code and a spec disagree,
 ```
 .
 ├── CLAUDE.md  README.md  .env.example  .gitignore  pyproject.toml  uv.lock
-├── docker-compose.yml          # local Postgres 16 for dev + tests
+├── docker-compose.yml          # local Postgres 16 for dev + tests (host port 5433)
+├── .github/workflows/ci.yml    # ruff, pytest (Postgres service), gitleaks
 ├── Dockerfile                  # agent image (LiveKit Cloud deploy; confirm expected location in LiveKit docs)
 ├── Dockerfile.api              # API + built dashboard (Render)
 ├── render.yaml
-├── db/migrations/0001_init.sql   db/seed.sql
+├── db/migrations/0001_init.sql   db/seed.sql   db/docker-init/ (creates intake_test)
 ├── src/intake/
 │   ├── config.py               # Settings (pydantic-settings); single source of env config
 │   ├── logging.py              # structlog JSON setup
@@ -113,8 +114,9 @@ Adjust these as you build and keep this list accurate.
 
 ```bash
 uv sync                                    # install
-docker compose up -d db                    # local Postgres on :5432
+docker compose up -d db                    # local Postgres 16 on 127.0.0.1:5433 (dbs: intake, intake_test)
 uv run python -m intake.db.check           # prints "ok" if DATABASE_URL connects (never prints the URL)
+uv run python -m intake.db.check --test    # same check for TEST_DATABASE_URL (local Docker)
 uv run python -m intake.db.migrate         # applies db/migrations/*.sql in order, tracked in schema_migrations
 uv run python -m intake.db.seed            # idempotent demo data
 uv run ruff check . && uv run ruff format --check .
