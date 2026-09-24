@@ -1,0 +1,3 @@
+# Reviewed false positives (commit:file:rule:line fingerprints).
+# The generic-api-key rule matched `clinic_zone.key == "America/Chicago"`, a time-zone name in a test.
+06cb4fc89b60f4de6190c55dcfb7c1ed06591771:tests/unit/test_config.py:generic-api-key:107

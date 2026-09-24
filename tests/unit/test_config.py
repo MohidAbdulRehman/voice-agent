@@ -104,7 +104,7 @@ def test_cors_origins_split_on_commas(monkeypatch: pytest.MonkeyPatch):
 
 def test_clinic_timezone_must_be_a_known_zone(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("CLINIC_TIMEZONE", "America/Chicago")
-    assert Settings(_env_file=None).clinic_zone.key == "America/Chicago"
+    assert str(Settings(_env_file=None).clinic_zone) == "America/Chicago"
 
     monkeypatch.setenv("CLINIC_TIMEZONE", "Mars/Olympus_Mons")
     with pytest.raises(ValidationError, match="clinic_timezone"):
