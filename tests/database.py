@@ -1,6 +1,7 @@
-"""Database fixtures: the test database is rebuilt once per run and emptied before each test.
+"""Database fixtures, shared by the db, api and agent tests (registered in tests/conftest.py).
 
-They refuse to touch anything but a local database whose name ends in ``_test``.
+The test database is rebuilt once per run and emptied before each test. The
+fixtures refuse to touch anything but a local database whose name ends in ``_test``.
 """
 
 import asyncio

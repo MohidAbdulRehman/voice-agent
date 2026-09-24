@@ -2,25 +2,13 @@
 
 import json
 import logging
-from collections.abc import Iterator
 
 import pytest
 import structlog
 
 from intake.logging import configure_logging
 
-
-@pytest.fixture(autouse=True)
-def _restore_logging() -> Iterator[None]:
-    """Undo configure_logging, leaving pytest's own capture handlers alone."""
-    root = logging.getLogger()
-    level = root.level
-    yield
-    for handler in root.handlers[:]:
-        if isinstance(handler.formatter, structlog.stdlib.ProcessorFormatter):
-            root.removeHandler(handler)
-    root.setLevel(level)
-    structlog.reset_defaults()
+pytestmark = pytest.mark.usefixtures("restore_logging")
 
 
 def _only_line(capsys: pytest.CaptureFixture[str]) -> dict:
@@ -55,6 +43,20 @@ def test_standard_library_records_are_json_too(capsys: pytest.CaptureFixture[str
     record = _only_line(capsys)
     assert record["event"] == "port 8000 is busy"
     assert record["level"] == "warning"
+    assert record["logger"] == "uvicorn.error"
+
+
+def test_uvicorn_logs_are_json_and_its_access_log_is_off(capsys: pytest.CaptureFixture[str]):
+    uvicorn_error = logging.getLogger("uvicorn.error")
+    uvicorn_error.addHandler(logging.StreamHandler())  # as uvicorn's own log config does
+    uvicorn_error.propagate = False
+    configure_logging("INFO")
+
+    uvicorn_error.info("Application startup complete.")
+    logging.getLogger("uvicorn.access").info('GET /patients?last_name=Doe "200"')
+
+    record = _only_line(capsys)
+    assert record["event"] == "Application startup complete."
     assert record["logger"] == "uvicorn.error"
 
 

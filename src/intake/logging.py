@@ -40,3 +40,11 @@ def configure_logging(level: str = "INFO") -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level.upper())
+    # uvicorn gives its loggers their own plain-text handlers; route them through ours.
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        library = logging.getLogger(name)
+        library.handlers.clear()
+        library.propagate = True
+    # The API logs each request itself, without the query string (it can hold patient
+    # data); uvicorn's access log would print it.
+    logging.getLogger("uvicorn.access").disabled = True
