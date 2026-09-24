@@ -7,10 +7,13 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "asyncpg>=0.31.0",
     "email-validator>=2.3.0",
+    "fastapi>=0.141.1",
     "pydantic-settings>=2.15.0",
+    "slowapi>=0.1.10",
     "sqlalchemy[asyncio]>=2.0.54",
     "structlog>=26.1.0",
     "tzdata>=2026.4",
+    "uvicorn[standard]>=0.53.0",
 ]
 
 [build-system]
@@ -22,6 +25,7 @@ module-name = "intake"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.8",

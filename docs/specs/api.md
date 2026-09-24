@@ -21,10 +21,12 @@ FastAPI's built-in handlers (`RequestValidationError`, `HTTPException`, uncaught
 | 201 | none | POST created. Includes a `Location: /patients/{id}` header. |
 | 400 | `BAD_REQUEST` | Malformed JSON, body isn't a JSON object, path id isn't a UUID, or a query param has a bad format (e.g. `date_of_birth=1990-03-05`, `limit=abc`) |
 | 404 | `NOT_FOUND` | Unknown id **or soft-deleted** patient (GET, PUT, DELETE) |
+| 405 | `METHOD_NOT_ALLOWED` | The path exists, but not with this method |
 | 413 | `PAYLOAD_TOO_LARGE` | Body larger than 32 KB |
 | 422 | `VALIDATION_ERROR` | Field rules fail, a required field is missing, an unknown field is present, a read-only field is present, or a PUT body is empty |
-| 429 | `RATE_LIMITED` | Over the limit: 120 req/min per IP overall, 30 req/min for writes |
+| 429 | `RATE_LIMITED` | Over the limit: 120 req/min per IP overall, 30 req/min for writes. Includes `Retry-After` (seconds). Requests rejected before a handler runs (unknown paths, malformed ids) aren't counted. |
 | 500 | `INTERNAL_ERROR` / `DATABASE_ERROR` | Unexpected error. The body never includes stack traces or SQL. |
+| 503 | `SERVICE_UNAVAILABLE` | `/health` only: the database is unreachable |
 
 ## Patients
 
@@ -82,11 +84,14 @@ Soft delete: sets `deleted_at`. The row is never removed. Returns 200 with the r
 |---|---|
 | `GET /patients/{id}/calls` | Calls linked to the patient: status, times, language, summary, transcript |
 | `GET /patients/{id}/appointments` | The patient's appointments with doctor name |
-| `GET /calls?status=&limit=&offset=` | Recent calls, newest first |
+| `GET /calls?status=&limit=&offset=` | Recent calls, newest first, without transcripts |
 | `GET /calls/{call_id}` | One call with its full transcript |
 | `GET /doctors` | Active doctors with specialty and languages |
+| `GET /dashboard/config` | Public settings for the dashboard banner: `{clinic_name, assistant_name, phone_number, clinic_timezone}` |
 | `GET /health` | `{status, database, version}`. Runs `SELECT 1`, so the uptime pinger also keeps the Supabase free project active. Returns 503 if the database is unreachable. |
 | `WS /ws/changes` | Pushes `{"table": "...", "op": "..."}` whenever the DB notifies. If LISTEN fails (e.g. a pooler limitation), the dashboard falls back to polling every 5 s, and `/health` reports `"live_updates": "polling"`. |
+
+A call's `caller_number` is carrier metadata the caller never chose to give, so the API masks it to the last four digits (`***-***-0143`). The internal LiveKit room name is never exposed.
 
 ## Dashboard (`/dashboard`)
 
@@ -106,6 +111,7 @@ The dashboard is **read-only** and unauthenticated, which is a documented limita
 - **Sanitization:** normalization rules from `data-model.md`, a 32 KB body limit, parameterized SQL only, and control characters rejected.
 - **CORS:** allow only `API_CORS_ORIGINS` (local dev: `http://localhost:5173`).
 - **Security headers:** `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and a basic Content-Security-Policy for the dashboard.
-- **Logging:** one JSON line per request with method, path, status, duration and request id. Request bodies are not logged; patient payloads are logged only by the agent's registration event.
+- **Logging:** one JSON line per request with method, path, status, duration and request id. Request bodies and query strings are not logged; patient payloads are logged only by the agent's registration event. Every response carries the id as `X-Request-ID`.
+- **Caching:** API responses are `Cache-Control: no-store`, since they carry patient data.
 - **No authentication** by design for the review. This is a documented trade-off; next step would be an API key for writes.
 - **Deployment:** `Dockerfile.api` is a multi-stage build (Node builds the dashboard, then the Python runtime). `render.yaml` defines the free web service with `healthCheckPath: /health`.
