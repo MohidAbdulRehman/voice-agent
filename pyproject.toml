@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "asyncpg>=0.31.0",
+    "email-validator>=2.3.0",
     "pydantic-settings>=2.15.0",
     "sqlalchemy[asyncio]>=2.0.54",
     "structlog>=26.1.0",
@@ -53,6 +54,7 @@ select = [
 ignore = [
     "E501",                          # the formatter owns line length
     "D100", "D104", "D105", "D107",  # module, package, magic-method and __init__ docstrings
+    "N818",                          # domain exceptions are named as outcomes: NotFound, SlotTaken
 ]
 
 [tool.ruff.lint.pydocstyle]
