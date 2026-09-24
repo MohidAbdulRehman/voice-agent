@@ -5,6 +5,7 @@ repository in a single transaction. "Today" comes from an injectable clock in
 the clinic's time zone, so tests can pin it.
 """
 
+import asyncio
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -24,6 +25,7 @@ from intake.core.models import (
     NotFound,
     Patient,
     PatientFilters,
+    PersistenceError,
     Slot,
     SlotTaken,
     TranscriptEntry,
@@ -33,11 +35,13 @@ from intake.core.validation import (
     ValidationContext,
     clean_field,
     clinic_today,
+    validate_filters,
     validate_new_patient,
     validate_patient_changes,
 )
 
 Clock = Callable[[], datetime]
+DATABASE_CHECK_SECONDS = 5
 
 
 def utc_now() -> datetime:
@@ -94,8 +98,17 @@ class PatientService:
         async with self._repository.transaction() as tx:
             patient = await tx.get_patient(patient_id)
         if patient is None:
-            raise NotFound
+            raise NotFound("patient")
         return patient
+
+    def filters(self, data: Mapping[str, object]) -> PatientFilters:
+        """Turn raw search terms (``last_name``, ``date_of_birth``, ``phone_number``) into filters.
+
+        Raises:
+            ValidationFailed: a term isn't a valid value for its field, e.g. a
+                date of birth that isn't MM/DD/YYYY.
+        """
+        return validate_filters(data, self._context())
 
     async def list_patients(
         self, filters: PatientFilters | None = None, *, limit: int = 50, offset: int = 0
@@ -127,7 +140,7 @@ class PatientService:
         async with self._repository.transaction() as tx:
             updated = await tx.update_patient(patient_id, changes.changes())
             if updated is None:
-                raise NotFound
+                raise NotFound("patient")
             if call_id is not None:
                 await tx.update_call(call_id, patient_id=patient_id, status=CallStatus.UPDATED)
         return updated
@@ -141,7 +154,7 @@ class PatientService:
         async with self._repository.transaction() as tx:
             deleted = await tx.soft_delete_patient(patient_id)
         if deleted is None:
-            raise NotFound
+            raise NotFound("patient")
         return deleted
 
     async def find_by_phone(self, phone_number: str) -> list[Patient]:
@@ -164,7 +177,7 @@ class CallService:
     async def _update(self, call_id: UUID, **values: object) -> None:
         async with self._repository.transaction() as tx:
             if not await tx.update_call(call_id, **values):
-                raise NotFound
+                raise NotFound("call")
 
     async def start(self, *, room_name: str, channel: Channel, caller_number: str | None) -> UUID:
         """Open the call (``in_progress``); a room that's dispatched again keeps its call."""
@@ -196,7 +209,7 @@ class CallService:
         async with self._repository.transaction() as tx:
             status = await tx.finish_call(call_id, end_reason=end_reason, transcript=transcript)
         if status is None:
-            raise NotFound
+            raise NotFound("call")
         return status
 
     async def save_summary(self, call_id: UUID, summary: str) -> None:
@@ -212,7 +225,7 @@ class CallService:
         async with self._repository.transaction() as tx:
             call = await tx.get_call(call_id)
         if call is None:
-            raise NotFound
+            raise NotFound("call")
         return call
 
     async def list_calls(
@@ -294,6 +307,23 @@ class SchedulingService:
             return await tx.appointments_for_patient(patient_id)
 
 
+class HealthService:
+    """Whether the database answers, for ``/health`` and the uptime pinger."""
+
+    def __init__(self, repository: Repository) -> None:
+        self._repository = repository
+
+    async def database_ok(self) -> bool:
+        """True if the database answers a trivial query within DATABASE_CHECK_SECONDS."""
+        try:
+            async with asyncio.timeout(DATABASE_CHECK_SECONDS):
+                async with self._repository.transaction() as tx:
+                    await tx.ping()
+        except (PersistenceError, TimeoutError):
+            return False
+        return True
+
+
 @dataclass(frozen=True)
 class Services:
     """Every service, sharing one repository."""
@@ -301,6 +331,7 @@ class Services:
     patients: PatientService
     calls: CallService
     scheduling: SchedulingService
+    health: HealthService
 
 
 def build_services(engine: AsyncEngine, settings: Settings, *, clock: Clock = utc_now) -> Services:
@@ -311,4 +342,5 @@ def build_services(engine: AsyncEngine, settings: Settings, *, clock: Clock = ut
         patients=PatientService(repository, timezone=zone, clock=clock),
         calls=CallService(repository),
         scheduling=SchedulingService(repository, timezone=zone, clock=clock),
+        health=HealthService(repository),
     )

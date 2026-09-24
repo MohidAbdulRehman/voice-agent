@@ -5,12 +5,13 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from intake.core.models import PatientUpdate, Sex, ValidationFailed
+from intake.core.models import PatientFilters, PatientUpdate, Sex, ValidationFailed
 from intake.core.validation import (
     ValidationContext,
     as_input,
     clean_field,
     clinic_today,
+    validate_filters,
     validate_new_patient,
     validate_patient_changes,
 )
@@ -236,3 +237,28 @@ def test_as_input_of_an_update_keeps_only_the_changes():
     changes = PatientUpdate(date_of_birth=date(1990, 3, 5), email=None)
 
     assert as_input(changes) == {"date_of_birth": "03/05/1990", "email": None}
+
+
+def test_filters_are_normalized_like_the_fields_they_search():
+    filters = validate_filters(
+        {"last_name": "o'brien", "date_of_birth": "03/05/1990", "phone_number": "(512) 555-0100"},
+        API,
+    )
+
+    assert filters == PatientFilters(
+        last_name="O'Brien", date_of_birth=date(1990, 3, 5), phone_number="5125550100"
+    )
+
+
+def test_blank_filters_are_ignored():
+    assert validate_filters({"last_name": " ", "phone_number": None}, API) == PatientFilters()
+
+
+def test_every_bad_filter_is_reported():
+    with pytest.raises(ValidationFailed) as excinfo:
+        validate_filters({"date_of_birth": "1990-03-05", "phone_number": "555-0100"}, API)
+
+    assert [(e.field, e.code) for e in excinfo.value.errors] == [
+        ("date_of_birth", "invalid_format"),
+        ("phone_number", "invalid_phone"),
+    ]

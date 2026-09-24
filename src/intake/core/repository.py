@@ -221,6 +221,10 @@ class Transaction:
         if self._fail_patient_writes:
             raise PersistenceError("simulated failure (SIMULATE_DB_FAILURE=true)")
 
+    async def ping(self) -> None:
+        """Run a trivial query, to prove the database answers."""
+        await self._conn.execute(select(literal(1)))
+
     # --- patients -------------------------------------------------------------
 
     async def insert_patient(

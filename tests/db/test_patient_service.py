@@ -109,11 +109,11 @@ async def test_update_validates_before_writing(patients: PatientService):
 
 
 async def test_unknown_patients_are_not_found(patients: PatientService):
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFound, match="patient not found"):
         await patients.get(uuid4())
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFound, match="patient not found"):
         await patients.update(uuid4(), {"city": "Dallas"})
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFound, match="patient not found"):
         await patients.soft_delete(uuid4())
 
 

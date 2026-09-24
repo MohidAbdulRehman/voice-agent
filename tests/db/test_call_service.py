@@ -97,9 +97,9 @@ async def test_list_calls_newest_first_by_status_or_patient(
 
 
 async def test_unknown_calls_are_not_found(calls: CallService):
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFound, match="call not found"):
         await calls.get(uuid4())
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFound, match="call not found"):
         await calls.save_payload(uuid4(), {"first_name": "Jane"})
-    with pytest.raises(NotFound):
+    with pytest.raises(NotFound, match="call not found"):
         await calls.finish(uuid4(), end_reason="completed", transcript=[])

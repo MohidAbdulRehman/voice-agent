@@ -32,9 +32,16 @@ def make_engine(url: str) -> AsyncEngine:
     """Create an async engine for a Postgres ``url`` in any of the accepted forms.
 
     Statement parameters are hidden from error messages, so a failed write never
-    puts patient data into a log line.
+    puts patient data into a log line. A connection attempt gives up after
+    CONNECT_TIMEOUT_SECONDS instead of asyncpg's default minute, so an
+    unreachable database fails a request quickly.
     """
-    return create_async_engine(to_async_url(url), pool_pre_ping=True, hide_parameters=True)
+    return create_async_engine(
+        to_async_url(url),
+        pool_pre_ping=True,
+        hide_parameters=True,
+        connect_args={"timeout": CONNECT_TIMEOUT_SECONDS},
+    )
 
 
 async def connect(url: str) -> asyncpg.Connection:

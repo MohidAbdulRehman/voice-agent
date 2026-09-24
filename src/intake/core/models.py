@@ -186,7 +186,11 @@ class ValidationFailed(Exception):
 
 
 class NotFound(Exception):
-    """The record doesn't exist, or it was soft-deleted."""
+    """The record doesn't exist, or it was soft-deleted. ``what`` names the kind of record."""
+
+    def __init__(self, what: str = "record") -> None:
+        super().__init__(f"{what} not found")
+        self.what = what
 
 
 class PersistenceError(Exception):

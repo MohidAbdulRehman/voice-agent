@@ -14,10 +14,18 @@ from zoneinfo import ZoneInfo
 
 from email_validator import EmailNotValidError, validate_email
 
-from intake.core.models import FieldError, PatientCreate, PatientUpdate, Sex, ValidationFailed
+from intake.core.models import (
+    FieldError,
+    PatientCreate,
+    PatientFilters,
+    PatientUpdate,
+    Sex,
+    ValidationFailed,
+)
 from intake.core.states import STATE_NAMES, state_code_for
 
 READ_ONLY_FIELDS = frozenset({"patient_id", "created_at", "updated_at", "deleted_at"})
+FILTER_FIELDS = ("last_name", "date_of_birth", "phone_number")
 OLDEST_DATE_OF_BIRTH = date(1900, 1, 1)
 
 LABELS = {
@@ -366,6 +374,30 @@ def validate_patient_changes(data: Mapping[str, object], ctx: ValidationContext)
     if errors:
         raise ValidationFailed(errors)
     return PatientUpdate.model_validate(changes)
+
+
+def validate_filters(data: Mapping[str, object], ctx: ValidationContext) -> PatientFilters:
+    """Normalize search terms with the rules of the fields they search; blank terms are ignored.
+
+    ``last_name=o'brien`` becomes ``O'Brien``, and a phone number in any format
+    becomes its 10 digits, so a term matches exactly what a stored value holds.
+
+    Raises:
+        ValidationFailed: listing every term that isn't a valid value for its field.
+    """
+    errors: list[FieldError] = []
+    values: dict[str, object] = {}
+    for field in FILTER_FIELDS:
+        try:
+            value = _clean(data.get(field), _RULES[field], ctx)
+        except Invalid as problem:
+            errors.append(_error(field, problem))
+            continue
+        if value is not None:
+            values[field] = value
+    if errors:
+        raise ValidationFailed(errors)
+    return PatientFilters.model_validate(values)
 
 
 def as_input(patient: PatientCreate | PatientUpdate) -> dict[str, object]:
