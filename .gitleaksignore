@@ -1,3 +1,5 @@
-# Reviewed false positives (commit:file:rule:line fingerprints).
-# The generic-api-key rule matched `clinic_zone.key == "America/Chicago"`, a time-zone name in a test.
+# Reviewed false positives (commit:file:rule:line fingerprints), both from the generic-api-key rule.
+# 06cb4fc: a time-zone name compared in tests/unit/test_config.py.
+# 3010155: the first version of this file, whose comment quoted that test line.
 06cb4fc89b60f4de6190c55dcfb7c1ed06591771:tests/unit/test_config.py:generic-api-key:107
+3010155134c9985ef811450908e9ebd954e0a88e:.gitleaksignore:generic-api-key:2
