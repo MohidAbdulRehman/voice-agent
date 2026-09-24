@@ -59,6 +59,68 @@ jobs:
       - run: uv sync --locked
       - run: uv run pytest
 
+  dashboard:
+    name: Dashboard (typecheck, Vitest, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npm run build # includes tsc --noEmit
+
+  smoke:
+    name: API image smoke test (Dockerfile.api + scripts/smoke.sh)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: intake_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d intake_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5433/intake_test
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Migrate and seed the throwaway database
+        run: |
+          uv run python -m intake.db.migrate --test
+          uv run python -m intake.db.seed --test
+      - run: docker build --file Dockerfile.api --tag intake-api .
+      - name: Start the API container
+        run: |
+          docker run --detach --name api --network host \
+            --env DATABASE_URL="$TEST_DATABASE_URL" --env PORT=8000 intake-api
+          for _ in $(seq 1 30); do
+            curl --silent --fail http://localhost:8000/health && exit 0
+            sleep 1
+          done
+          exit 1
+      - run: bash scripts/smoke.sh http://localhost:8000
+      - name: API container logs
+        if: always()
+        run: docker logs api
+
   secrets:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
