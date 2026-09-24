@@ -1,0 +1,39 @@
+# --- Secrets & private material (repo is PUBLIC) ---
+.env
+.env.*
+!.env.example
+docs/private/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# --- Node / dashboard ---
+node_modules/
+dashboard/dist/
+src/intake/api/static/
+
+# --- Playwright / test artifacts ---
+test-results/
+playwright-report/
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# --- Local recordings / scratch ---
+recordings/
+*.wav
+*.log
