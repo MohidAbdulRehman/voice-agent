@@ -62,7 +62,7 @@ Read the relevant document before coding that area. If code and a spec disagree,
   - SQLAlchemy 2.x (async) with asyncpg. The app converts `postgresql://` to `postgresql+asyncpg://` in code.
   - structlog for JSON logs, slowapi for rate limiting.
 - **Agent:**
-  - `livekit-agents`, with plugins for deepgram, cartesia, groq, silero, turn-detector and noise-cancellation (exact package names per LiveKit docs). In 1.8, Silero VAD and the (audio) turn detector are built into `livekit-agents`, so the `agent` extra is `livekit-agents[deepgram,cartesia,groq]`; noise cancellation is its own package (Phase 4).
+  - `livekit-agents`, with plugins for deepgram, cartesia, groq, silero, turn-detector and noise-cancellation (exact package names per LiveKit docs). In 1.8, Silero VAD and the (audio) turn detector are built into `livekit-agents`, so the `agent` extra is `livekit-agents[deepgram,cartesia,groq]` plus `livekit-plugins-noise-cancellation` (Krisp: telephony voice isolation for SIP callers, noise suppression for others).
   - The LLM primary is **LiveKit Inference** (no extra key); the fallback is Groq.
 - **Tests:** pytest, pytest-asyncio, httpx, freezegun (or time-machine). **Lint:** ruff (lint + format). **Secret scan:** gitleaks in CI.
 - **Dashboard:** React + Vite + TypeScript + Tailwind, and Vitest. Playwright is optional.
@@ -78,7 +78,7 @@ Read the relevant document before coding that area. If code and a spec disagree,
 ├── CLAUDE.md  README.md  .env.example  .gitignore  pyproject.toml  uv.lock
 ├── docker-compose.yml          # local Postgres 16 for dev + tests (host port 5433)
 ├── .github/workflows/ci.yml    # ruff, pytest (Postgres service), gitleaks
-├── Dockerfile                  # agent image (LiveKit Cloud deploy; confirm expected location in LiveKit docs)
+├── Dockerfile  livekit.toml    # agent image, which LiveKit Cloud builds from the repo root; its deploy config (written by `lk agent create`)
 ├── Dockerfile.api              # API + built dashboard (local/Docker hosting)
 ├── app.py  vercel.json         # Vercel entrypoint + config (region, build, bundle excludes, headers)
 ├── db/migrations/0001_init.sql   db/seed.sql   db/docker-init/ (creates intake_test)
@@ -132,6 +132,9 @@ uv run python -m intake.agent dev          # register with LiveKit Cloud (phone/
 cd dashboard && npm install && npm run dev    # dashboard on :5173/dashboard/, proxying API calls to :8000
 cd dashboard && npm test && npm run build     # Vitest; typecheck + build into src/intake/api/static (served at /dashboard; Vercel's build runs it too)
 docker build --file Dockerfile.api --tag intake-api .   # local/Docker image: API + built dashboard
+docker build --tag intake-agent .             # the agent image LiveKit Cloud builds (CI builds it on every push)
+lk agent create --region us-east --secrets-file=.env   # first deploy to LiveKit Cloud; the human runs it (after `lk cloud auth`)
+lk agent deploy                               # ship a new agent version; `lk agent status`, `lk agent logs`
 bash scripts/smoke.sh http://localhost:8000   # live API smoke check (curl + jq); run against the Vercel URL before submitting
 ```
 

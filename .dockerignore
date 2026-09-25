@@ -2,7 +2,9 @@
 .env
 .env.*
 !.env.example
-docs/private/
+# Specs and docs/private: no image needs them.
+docs/
+console-recordings/
 .git/
 .github/
 .venv/

@@ -74,7 +74,7 @@ TODO: verify these steps from a clean clone.
 | Part | Where | Configured by |
 |---|---|---|
 | REST API + dashboard | Vercel Hobby, function region `iad1` | `vercel.json` + `app.py` |
-| Voice agent | LiveKit Cloud | Phase 4 |
+| Voice agent | LiveKit Cloud, region `us-east` | `Dockerfile` (LiveKit Cloud builds it) + `livekit.toml` |
 | Database | Supabase (free) | `python -m intake.db.migrate` and `seed` |
 
 ### Vercel: what `vercel.json` does
@@ -97,6 +97,28 @@ Set these in the Vercel project (Settings → Environment Variables). Never comm
 After deploying, check the live API: `bash scripts/smoke.sh https://<project>.vercel.app`.
 
 `Dockerfile.api` builds the same API and dashboard into one image for local or Docker hosting. `docs/alternatives/render.yaml` is an unused Render Blueprint.
+
+### LiveKit Cloud: the voice agent
+
+LiveKit Cloud builds `Dockerfile` itself, and CI builds the same image on every push. The image holds no secrets: they're set with the LiveKit CLI and injected when the agent starts. LiveKit Cloud provides `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` on its own.
+
+1. **Deploy**, from the repo root: `lk cloud auth`, then `lk agent create --region us-east --secrets-file=.env`. The first deploy writes `livekit.toml`. After that, `lk agent deploy` ships a new version. `lk agent status` and `lk agent logs` show how it's doing.
+2. **Secrets the agent uses:**
+   - Required: `DATABASE_URL` (Supabase's **session pooler**, port 5432), `DEEPGRAM_API_KEY`, `CARTESIA_API_KEY` and `GROQ_API_KEY`.
+   - Optional: the voice IDs `CARTESIA_VOICE_EN`/`_ES` and `DEEPGRAM_TTS_VOICE_EN`/`_ES`.
+   - `lk agent update-secrets` changes them. The agent ignores any other keys in `.env`.
+3. **Phone number:** Telephony → Phone Numbers → **Rent a number** (one US number is free). Then Telephony → Dispatch rules → **Create new dispatch rule** → JSON editor:
+   ```json
+   {
+     "name": "Patient intake",
+     "rule": { "dispatchRuleIndividual": { "roomPrefix": "call-" } },
+     "roomConfig": { "agents": [{ "agentName": "patient-intake" }] }
+   }
+   ```
+   Assign the rule to the number: Phone Numbers → ⋮ → Assign dispatch rule.
+4. **Recordings:** turn on Settings → Data and privacy → **Agent observability**. Each call's audio and transcript then appear under Sessions → the call → **Agent insights** for 30 days.
+
+On the free plan the agent scales to zero when idle, so the first call after a quiet spell waits 10–20 seconds while it starts. Before a demo, warm it up with a short session in the LiveKit Cloud Agent Console, which uses no phone minutes.
 
 ## Environment variables
 

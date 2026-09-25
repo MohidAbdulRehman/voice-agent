@@ -146,6 +146,17 @@ jobs:
         if: always()
         run: docker logs api
 
+  agent-image:
+    # The image LiveKit Cloud builds from Dockerfile. Its build imports the whole
+    # voice pipeline, so a plugin that can't load on Linux fails here, not in a call.
+    name: Agent image (Dockerfile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build --tag intake-agent .
+      - name: The entrypoint starts in the image, as the unprivileged user
+        run: docker run --rm intake-agent python -m intake.agent --help
+
   secrets:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
