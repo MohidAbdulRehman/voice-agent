@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke-check a running API:  bash scripts/smoke.sh https://<service>.onrender.com
+# Smoke-check a running API:  bash scripts/smoke.sh https://<project>.vercel.app
 #
 # Walks health, list, create, get, update, search and delete, plus the 400, 404
 # and 422 cases, checking every status code and the {data, error} envelope with
@@ -58,7 +58,7 @@ expect() {
   jq -e "$1" "$body" >/dev/null || fail "$2: $(head -c 300 "$body")"
 }
 
-echo "Smoke-checking $BASE_URL (a sleeping free instance can take a minute to wake)"
+echo "Smoke-checking $BASE_URL"
 
 call GET /health 200
 expect '.data.status == "ok" and .data.database == "ok"' "health"
