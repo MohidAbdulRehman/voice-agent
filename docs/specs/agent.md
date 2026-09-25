@@ -13,11 +13,11 @@ Python, LiveKit Agents, under `src/intake/agent/`. **Before writing any LiveKit 
 
 | Concern | Requirement |
 |---|---|
-| Dispatch | Explicit dispatch with `agent_name = AGENT_NAME` (`patient-intake`), matching the LiveKit dispatch rule |
+| Dispatch | Explicit dispatch as `AGENT_NAME` (`patient-intake`), matching the LiveKit dispatch rule. LiveKit Agents 1.8 reads the name from `LIVEKIT_AGENT_NAME` (its `agent_name=` argument is deprecated), so the server exports `AGENT_NAME` there before registering. |
 | STT | Deepgram `nova-3` in multilingual mode (English/Spanish code-switching). Enable smart formatting and numerals if supported. Keyterm hints: clinic name, "Decline to Answer". |
 | LLM | Fallback adapter: **primary** LiveKit Inference `LLM_PRIMARY_MODEL` (`openai/gpt-4.1-mini`), **fallback** Groq `LLM_FALLBACK_MODEL` (`llama-3.3-70b-versatile`). Temperature 0.3. Disable parallel tool calls if the plugin allows it. |
 | TTS | Fallback adapter: **primary** Cartesia `sonic-3` with `CARTESIA_VOICE_EN`, **fallback** Deepgram Aura-2 with `DEEPGRAM_TTS_VOICE_EN`. `set_language` switches both to the Spanish voice and language (`CARTESIA_VOICE_ES`, `DEEPGRAM_TTS_VOICE_ES`). If no Aura-2 Spanish voice is configured, the fallback stays English; document this. |
-| Turn-taking | Silero VAD plus LiveKit's multilingual turn-detector model, so the agent doesn't jump in while someone pauses mid-phone-number. Callers can interrupt the agent (the default). |
+| Turn-taking | Silero VAD plus LiveKit's turn-detector model, so the agent doesn't jump in while someone pauses mid-phone-number. Callers can interrupt the agent (the default). In LiveKit Agents 1.8 both are built in: the session's default VAD is the bundled Silero model, and `inference.TurnDetector()` is the audio end-of-turn model (English and Spanish, among 14 languages). The older text model, `MultilingualModel` from the turn-detector plugin, is deprecated, so neither plugin is needed. |
 | Noise | Telephony-optimized noise cancellation for SIP participants, if the plan supports it. Skip it gracefully if not. |
 | Background audio | Office ambience at low volume, plus keyboard typing as the "thinking" sound during tool calls, so saves sound like typing rather than dead air |
 | Greeting | Fixed text via `say`, not LLM-generated (faster, cheaper, deterministic). It must name the clinic and say "virtual assistant". The first sentence can't be interrupted. See §6. |
@@ -45,7 +45,12 @@ class CallState:
     offered_slots: dict[str, SlotRef] = field(default_factory=dict)  # opaque slot_id -> (doctor_id, start)
     appointment_id: UUID | None = None
     silence_prompts: int = 0
+    matched_patient_id: UUID | None = None       # the latest found lookup (most recently updated match)
+    saved: tuple[str, dict] | None = None        # (draft_id, result) of the successful commit
+    end_reason: str | None = None                # set by end_call (or the time limit); the first one wins
 ```
+
+After a successful create, `mode` becomes `update` with the new patient as the target, so a correction later in the same call updates that record (the call stays `registered`).
 
 ## 4. Tool contracts
 
@@ -54,6 +59,8 @@ Rules for every tool:
 - It never raises to the LLM: exceptions become `{"status": "system_error"}` and are logged with a stack trace.
 - It never exposes internal ids in anything meant to be spoken.
 - Latency target: under 800 ms at the 95th percentile.
+- The LLM receives the result as JSON (`str()` of a dict subclass), and every call logs `tool.called`.
+- Beyond the results below, a tool refuses what can't be done yet with `{"status": "invalid", "errors": [{"field": null, "code", "message"}]}`: for example `prepare_record` with `no_patient_to_update`, `updating_existing_record` or `already_registered`.
 
 ### `lookup_patient_by_phone(phone_number: str)`
 Normalizes the number and finds patients that are **not soft-deleted**. The agent calls it right after it gets the phone number.
@@ -78,7 +85,7 @@ Side effect: remembers the matched `patient_id` in state (the most recently upda
 - Side effect: writes the normalized data to `calls.final_payload` (status stays `in_progress`), so an abandoned call still leaves a trace.
 
 ### `acknowledge_duplicate(choice: "update" | "create_new")`
-The caller has answered the duplicate question. `update` sets `mode = "update"` and `target_patient_id`. `create_new` sets `duplicate_acknowledged = True`. Returns `{"status": "ok", "mode": "update"|"create"}`.
+The caller has answered the duplicate question. `update` sets `mode = "update"` and `target_patient_id`. `create_new` sets `duplicate_acknowledged = True`. Returns `{"status": "ok", "mode": "update"|"create"}`, or `{"status": "not_found"}` for `update` when no lookup matched.
 
 ### `commit_record(draft_id: str, caller_confirmed: bool)`
 Rules:
@@ -105,16 +112,16 @@ Requires `committed_patient_id`, else `{"status": "not_registered"}`. Uses `avai
 {"status": "ok", "slots": [{"slot_id": "s1", "doctor": "Dr. Priya Shah", "spoken": "Tuesday, September 29th at 10:30 AM"}]}
 {"status": "none", "next_available": [ ...up to 3 from any day... ]}
 ```
-`slot_id` values are opaque and scoped to the session.
+`slot_id` values are opaque and scoped to the session. A `preferred_date` that isn't `MM/DD/YYYY` gives `{"status": "invalid", ...}`. The spoken times come from `core/speech.py` (`say_slot`), in the clinic's time zone and `state.language`.
 
 ### `book_appointment(slot_id: str)`
-Inserts with `booked_via = 'voice_agent'` and `call_id`. The database exclusion constraint decides whether the slot is taken; the tool maps that violation to `{"status": "slot_taken", "alternatives": [...]}`. Success: `{"status": "booked", "spoken": "Tuesday, September 29th at 10:30 AM with Dr. Priya Shah"}`.
+Inserts with `booked_via = 'voice_agent'` and `call_id`. The database exclusion constraint decides whether the slot is taken; the tool maps that violation to `{"status": "slot_taken", "alternatives": [...]}`. Success: `{"status": "booked", "spoken": "Tuesday, September 29th at 10:30 AM with Dr. Priya Shah"}`. Also `{"status": "not_registered"}` before a save, and `{"status": "unknown_slot"}` for an id that wasn't offered.
 
 ### `set_language(language: "English" | "Spanish")`
 Switches the TTS voice and language, sets `state.language` (read-backs and spoken forms follow it) and updates `calls.language`. Returns `{"status": "ok", "language": "Spanish"}`. It does **not** change `preferred_language` by itself; the prompt asks the LLM to include that in the record.
 
 ### `end_call(reason: "completed" | "caller_request" | "no_response" | "emergency" | "out_of_scope")`
-Waits for current speech to finish, then disconnects the call (look up the current "hang up" pattern in LiveKit docs). Finalization then happens in the shutdown handler. Returns `{"status": "ending"}`.
+Waits for current speech to finish (`wait_for_playout`), then shuts the session down with `drain=True`. The session is started with `RoomOptions(delete_room_on_close=True)`, so closing it deletes the room, which hangs up a phone call (in console mode LiveKit skips the delete). Finalization then happens in the shutdown handler. Returns `{"status": "ending"}` without asking the LLM for another reply.
 
 ## 5. Call lifecycle and persistence
 

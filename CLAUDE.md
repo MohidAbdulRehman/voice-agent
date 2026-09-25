@@ -62,7 +62,7 @@ Read the relevant document before coding that area. If code and a spec disagree,
   - SQLAlchemy 2.x (async) with asyncpg. The app converts `postgresql://` to `postgresql+asyncpg://` in code.
   - structlog for JSON logs, slowapi for rate limiting.
 - **Agent:**
-  - `livekit-agents`, with plugins for deepgram, cartesia, groq, silero, turn-detector and noise-cancellation (exact package names per LiveKit docs).
+  - `livekit-agents`, with plugins for deepgram, cartesia, groq, silero, turn-detector and noise-cancellation (exact package names per LiveKit docs). In 1.8, Silero VAD and the (audio) turn detector are built into `livekit-agents`, so the `agent` extra is `livekit-agents[deepgram,cartesia,groq]`; noise cancellation is its own package (Phase 4).
   - The LLM primary is **LiveKit Inference** (no extra key); the fallback is Groq.
 - **Tests:** pytest, pytest-asyncio, httpx, freezegun (or time-machine). **Lint:** ruff (lint + format). **Secret scan:** gitleaks in CI.
 - **Dashboard:** React + Vite + TypeScript + Tailwind, and Vitest. Playwright is optional.
@@ -125,7 +125,8 @@ uv run ruff check . && uv run ruff format --check .
 uv run pytest                              # unit + db + api + agent tool tests (local DB)
 uv run pytest -m evals                     # LLM-judged conversation evals: ASK FIRST (uses credits)
 uv run uvicorn intake.api.main:app --reload   # API on :8000, docs at /docs (uses DATABASE_URL; see the local-DB note above)
-uv run python -m intake.agent console      # talk to the agent in the terminal (no phone minutes)
+uv run python -m intake.agent console      # talk to the agent in the terminal (no phone minutes); --text to type
+                                           # (LiveKit notes these commands moved to `lk agent`, which expects src/agent.py)
 uv run python -m intake.agent dev          # register with LiveKit Cloud (phone/playground)
 cd dashboard && npm install && npm run dev    # dashboard on :5173/dashboard/, proxying API calls to :8000
 cd dashboard && npm test && npm run build     # Vitest; typecheck + build into src/intake/api/static (served at /dashboard; Vercel's build runs it too)
