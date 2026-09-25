@@ -1,23 +1,29 @@
 import { useState } from "react";
 import { api, searchQuery } from "./api";
 import { Header } from "./components/Header";
+import { LiveStatus } from "./components/LiveStatus";
 import { PatientDetail } from "./components/PatientDetail";
 import { PatientsTable } from "./components/PatientsTable";
 import { NO_SEARCH, SearchForm } from "./components/SearchForm";
 import type { PatientSearch } from "./types";
 import { useApi } from "./useApi";
+import { usePolling } from "./usePolling";
 
 const DEFAULT_TIME_ZONE = "America/New_York";
+export const POLL_MS = 5000;
 
 export function App() {
   const [search, setSearch] = useState<PatientSearch>(NO_SEARCH);
-  const [refreshes, setRefreshes] = useState(0);
+  const [manualRefreshes, setManualRefreshes] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Both only ever go up, so their sum changes whenever either does.
+  const refresh = usePolling(POLL_MS) + manualRefreshes;
 
   const config = useApi(api.config, "config");
   const patients = useApi(
     (signal) => api.patients(search, signal),
-    `patients${searchQuery(search)}:${refreshes}`,
+    `patients${searchQuery(search)}`,
+    refresh,
   );
 
   const settings = config.state === "ready" ? config.data : null;
@@ -31,13 +37,16 @@ export function App() {
       <Header config={settings} />
       <main className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section aria-labelledby="patients-heading" className="space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 id="patients-heading" className="text-lg font-semibold">
-              Patients
-            </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h2 id="patients-heading" className="text-lg font-semibold">
+                Patients
+              </h2>
+              <LiveStatus result={patients} timeZone={timeZone} pollMs={POLL_MS} />
+            </div>
             <button
               type="button"
-              onClick={() => setRefreshes((count) => count + 1)}
+              onClick={() => setManualRefreshes((count) => count + 1)}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
             >
               Refresh
@@ -69,7 +78,7 @@ export function App() {
               key={selected.patient_id}
               patient={selected}
               timeZone={timeZone}
-              refreshes={refreshes}
+              refresh={refresh}
             />
           ) : (
             <p className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">

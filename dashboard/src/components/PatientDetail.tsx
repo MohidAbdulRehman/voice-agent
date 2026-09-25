@@ -7,19 +7,20 @@ import { useApi, type Loadable } from "../useApi";
 interface PatientDetailProps {
   patient: Patient;
   timeZone: string;
-  /** Changes whenever the dashboard is refreshed, to reload calls and appointments. */
-  refreshes: number;
+  /** Goes up whenever the dashboard refreshes, to reload calls and appointments quietly. */
+  refresh: number;
 }
 
-export function PatientDetail({ patient, timeZone, refreshes }: PatientDetailProps) {
+export function PatientDetail({ patient, timeZone, refresh }: PatientDetailProps) {
   const id = patient.patient_id;
   const heading = useRef<HTMLHeadingElement>(null);
   // Move focus to the chosen patient, which also scrolls the panel into view on phones.
   useEffect(() => heading.current?.focus(), [id]);
-  const calls = useApi((signal) => api.calls(id, signal), `calls:${id}:${refreshes}`);
+  const calls = useApi((signal) => api.calls(id, signal), `calls:${id}`, refresh);
   const appointments = useApi(
     (signal) => api.appointments(id, signal),
-    `appointments:${id}:${refreshes}`,
+    `appointments:${id}`,
+    refresh,
   );
   const fields: [string, string | null][] = [
     ["Date of birth", patient.date_of_birth],

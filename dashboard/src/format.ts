@@ -26,6 +26,17 @@ export function formatDateTime(iso: string, timeZone: string): string {
   }).format(new Date(iso));
 }
 
+/** A time of day in the clinic's time zone, e.g. "12:04:05 PM EDT". */
+export function formatClock(epochMs: number, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone,
+    timeZoneName: "short",
+  }).format(new Date(epochMs));
+}
+
 const CALL_STATUS_LABELS: Record<CallStatus, string> = {
   in_progress: "In progress",
   registered: "Registered",
