@@ -1,17 +1,20 @@
 """Spoken forms and read-back groups in English and Spanish."""
 
-from datetime import date
+from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from intake.core.models import PatientCreate, PatientUpdate, Sex
 from intake.core.speech import (
     readback,
+    say_booking,
     say_characters,
     say_date,
     say_email,
     say_language,
     say_phone,
+    say_slot,
     say_unit,
     say_zip,
     spell,
@@ -253,3 +256,42 @@ def test_update_readback_has_only_the_changed_fields():
         ("name", "Apellido Davis, se escribe D-A-V-I-S."),
         ("address", "Apartamento 4. Ciudad Dallas."),
     ]
+
+
+EASTERN = ZoneInfo("America/New_York")
+
+
+@pytest.mark.parametrize(
+    ("starts_at", "english", "spanish"),
+    [
+        (  # 14:30 UTC is 10:30 in New York (daylight saving time)
+            datetime(2026, 9, 29, 14, 30, tzinfo=UTC),
+            "Tuesday, September 29th at 10:30 AM",
+            "martes 29 de septiembre a las 10:30 de la mañana",
+        ),
+        (  # on the hour, no minutes; 1 PM is "la 1" in Spanish
+            datetime(2026, 10, 1, 17, 0, tzinfo=UTC),
+            "Thursday, October 1st at 1 PM",
+            "jueves 1 de octubre a la 1 de la tarde",
+        ),
+        (  # after the switch to standard time, 14:00 UTC is 9 AM
+            datetime(2026, 11, 2, 14, 0, tzinfo=UTC),
+            "Monday, November 2nd at 9 AM",
+            "lunes 2 de noviembre a las 9 de la mañana",
+        ),
+    ],
+)
+def test_say_slot_in_the_clinic_time_zone(starts_at: datetime, english: str, spanish: str):
+    assert say_slot(starts_at, EASTERN, "English") == english
+    assert say_slot(starts_at, EASTERN, "Spanish") == spanish
+
+
+def test_say_booking_names_the_doctor():
+    starts_at = datetime(2026, 9, 29, 14, 30, tzinfo=UTC)
+
+    assert say_booking(starts_at, "Dr. Priya Shah", EASTERN, "English") == (
+        "Tuesday, September 29th at 10:30 AM with Dr. Priya Shah"
+    )
+    assert say_booking(starts_at, "Dr. Elena Ruiz", EASTERN, "Spanish") == (
+        "martes 29 de septiembre a las 10:30 de la mañana con Dr. Elena Ruiz"
+    )

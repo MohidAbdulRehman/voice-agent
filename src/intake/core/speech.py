@@ -6,8 +6,9 @@ says a digit on its own (docs/specs/data-model.md, "Spoken forms").
 
 import re
 from collections.abc import Callable
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Literal
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict
 
@@ -59,6 +60,10 @@ _MONTHS: dict[SpokenLanguage, tuple[str, ...]] = {
         "noviembre",
         "diciembre",
     ),
+}
+_WEEKDAYS: dict[SpokenLanguage, tuple[str, ...]] = {
+    "English": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+    "Spanish": ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"),
 }
 _SEX: dict[SpokenLanguage, dict[Sex, str]] = {
     "English": {
@@ -213,8 +218,45 @@ def say_date(day: date, language: SpokenLanguage) -> str:
     month = _MONTHS[language][day.month - 1]
     if language == "Spanish":
         return f"{day.day} de {month} de {day.year}"
-    suffix = "th" if 11 <= day.day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day.day % 10, "th")
-    return f"{month} {day.day}{suffix}, {day.year}"
+    return f"{month} {_ordinal(day.day)}, {day.year}"
+
+
+def _ordinal(day: int) -> str:
+    return f"{day}{'th' if 11 <= day <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')}"
+
+
+def say_slot(starts_at: datetime, zone: ZoneInfo, language: SpokenLanguage) -> str:
+    """An appointment time at the clinic: ``Tuesday, September 29th at 10:30 AM``.
+
+    In Spanish: ``martes 29 de septiembre a las 10:30 de la mañana``. On the hour,
+    the minutes are left out (``at 9 AM``, ``a las 9 de la mañana``).
+    """
+    local = starts_at.astimezone(zone)
+    hour = local.hour % 12 or 12
+    clock = f"{hour}:{local.minute:02d}" if local.minute else str(hour)
+    weekday = _WEEKDAYS[language][local.weekday()]
+    month = _MONTHS[language][local.month - 1]
+    if language == "Spanish":
+        part = (
+            "de la mañana"
+            if local.hour < 12
+            else "de la tarde"
+            if local.hour < 19
+            else "de la noche"
+        )
+        article = "la" if hour == 1 else "las"
+        return f"{weekday} {local.day} de {month} a {article} {clock} {part}"
+    return (
+        f"{weekday}, {month} {_ordinal(local.day)} at {clock} {'AM' if local.hour < 12 else 'PM'}"
+    )
+
+
+def say_booking(
+    starts_at: datetime, doctor_name: str, zone: ZoneInfo, language: SpokenLanguage
+) -> str:
+    """A booked appointment: ``Tuesday, September 29th at 10:30 AM with Dr. Priya Shah``."""
+    with_word = "con" if language == "Spanish" else "with"
+    return f"{say_slot(starts_at, zone, language)} {with_word} {doctor_name}"
 
 
 def say_email(email: str, language: SpokenLanguage) -> str:

@@ -24,7 +24,9 @@ from intake.core.models import (
     Doctor,
     NotFound,
     Patient,
+    PatientCreate,
     PatientFilters,
+    PatientUpdate,
     PersistenceError,
     Slot,
     SlotTaken,
@@ -62,6 +64,26 @@ class PatientService:
     def _context(self, *, accept_state_names: bool = False) -> ValidationContext:
         today = clinic_today(self._clock(), self._timezone)
         return ValidationContext(today=today, accept_state_names=accept_state_names)
+
+    def validate_new(
+        self, data: Mapping[str, object], *, accept_state_names: bool = False
+    ) -> PatientCreate:
+        """Validate a complete new patient without saving it, e.g. to read it back first.
+
+        Raises:
+            ValidationFailed: listing every problem; missing fields are ``required``.
+        """
+        return validate_new_patient(data, self._context(accept_state_names=accept_state_names))
+
+    def validate_changes(
+        self, data: Mapping[str, object], *, accept_state_names: bool = False
+    ) -> PatientUpdate:
+        """Validate a partial update without saving it.
+
+        Raises:
+            ValidationFailed: listing every problem, or ``empty_update``.
+        """
+        return validate_patient_changes(data, self._context(accept_state_names=accept_state_names))
 
     async def create(
         self,
