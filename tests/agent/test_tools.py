@@ -209,6 +209,21 @@ async def test_committing_the_same_draft_twice_saves_one_patient(
 
 
 @pytest.mark.usefixtures("restore_logging")
+async def test_a_save_logs_the_final_payload(
+    agent: IntakeAgent, call: FakeRunContext, capsys: pytest.CaptureFixture[str]
+):
+    configure_logging("INFO")
+
+    await saved(agent, call)
+
+    (committed,) = [line for line in logged(capsys) if line["event"] == "registration.committed"]
+    assert committed["action"] == "create"
+    assert committed["patient_id"] == str(call.userdata.committed_patient_id)
+    assert committed["payload"]["last_name"] == "Davis"
+    assert committed["payload"]["phone_number"] == "5125550100"  # the full record, as saved
+
+
+@pytest.mark.usefixtures("restore_logging")
 async def test_a_failing_database_gets_one_retry_offer_then_the_call_is_failed(
     make_agent: AgentFactory,
     call: FakeRunContext,
