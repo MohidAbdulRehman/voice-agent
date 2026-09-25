@@ -174,4 +174,4 @@ def test_masking_helpers():
     assert last_four("5125550143") == "0143"
     assert last_four(None) is None
     assert mask_digits("room-12345678901") == "room-*******8901"
-    assert mask_digits("console-1234") == "console-1234"  # short runs are not phone numbers
+    assert mask_digits("console-181c1234567e") == "console-181c1234567e"  # a random id

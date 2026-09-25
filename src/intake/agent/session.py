@@ -52,6 +52,9 @@ KEYTERMS = ("Decline to Answer",)  # plus the clinic's name
 SIP_CALLER_NUMBER = "sip.phoneNumber"  # participant attribute set by LiveKit telephony
 SILENCE_SECONDS = 12.0  # caller silence before "Are you still there?", and again before goodbye
 WRAP_UP_GRACE_SECONDS = 60.0  # after the time-limit wrap-up, the call ends even if the LLM hasn't
+# LiveKit gives a new worker process 10 s to start by default; loading its local models
+# took 16 s on a development laptop, so the first attempt timed out.
+PROCESS_START_SECONDS = 60.0
 # Per-turn latencies (seconds) logged at debug level, from each message's metrics.
 TURN_LATENCIES = (
     "transcription_delay",
@@ -172,6 +175,9 @@ async def entrypoint(ctx: JobContext) -> None:
         user_away_timeout=None if console else SILENCE_SECONDS,
     )
     session.on("conversation_item_added", _log_turn_metrics)
+    # Once the session closes (end_call, silence, hang-up), end the job, which runs the
+    # shutdown handler below right away.
+    session.on("close", lambda event: ctx.shutdown(reason=event.reason.value))
     if not console:
         watch_silence(session)
     time_limit = asyncio.create_task(limit_call_length(session, settings.max_call_minutes))
@@ -271,7 +277,7 @@ def greet(session: AgentSession[CallState], settings: Settings) -> None:
 def build_server(settings: Settings) -> AgentServer:
     """The agent server; LiveKit dispatches calls to it explicitly, by ``AGENT_NAME``."""
     export_livekit_env(settings)  # before registering: the agent name is read from it
-    server = AgentServer()
+    server = AgentServer(initialize_process_timeout=PROCESS_START_SECONDS)
     server.rtc_session(entrypoint)
     return server
 

@@ -23,7 +23,7 @@ log = structlog.stdlib.get_logger("intake.agent")
 
 SUMMARY_TIMEOUT_SECONDS = 6.0  # the job gets 10 seconds to shut down
 MIN_TURNS_FOR_SUMMARY = 2  # caller turns
-_LONG_DIGIT_RUN = re.compile(r"\d{5,}")
+_PHONE_LIKE_DIGITS = re.compile(r"\d{10,}")  # a phone number, not the digits of a random id
 
 Summarizer = Callable[[list[TranscriptEntry]], Awaitable[str]]
 
@@ -34,8 +34,8 @@ def last_four(number: str | None) -> str | None:
 
 
 def mask_digits(text: str) -> str:
-    """Hide all but the last four digits of long digit runs, such as a number in a room name."""
-    return _LONG_DIGIT_RUN.sub(lambda run: "*" * (len(run[0]) - 4) + run[0][-4:], text)
+    """Hide all but the last four digits of a phone number, such as one in a room name."""
+    return _PHONE_LIKE_DIGITS.sub(lambda run: "*" * (len(run[0]) - 4) + run[0][-4:], text)
 
 
 async def open_call(
