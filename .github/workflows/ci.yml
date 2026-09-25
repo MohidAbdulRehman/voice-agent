@@ -77,7 +77,10 @@ jobs:
       - run: npm run build # includes tsc --noEmit
 
   smoke:
-    name: API image smoke test (Dockerfile.api + scripts/smoke.sh)
+    # Runs the Docker image of the API through a transaction-mode PgBouncer on port
+    # 6543, the same kind of pooler the Vercel deployment uses (Supabase's
+    # transaction pooler). Prepared-statement support is off, the strictest case.
+    name: API image smoke test via a transaction pooler (Dockerfile.api + scripts/smoke.sh)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -93,8 +96,24 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      pooler:
+        image: edoburu/pgbouncer:v1.25.2-p0
+        env:
+          DB_HOST: postgres
+          DB_PORT: "5432"
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: intake_test
+          AUTH_TYPE: scram-sha-256
+          POOL_MODE: transaction
+          MAX_PREPARED_STATEMENTS: "0"
+          DEFAULT_POOL_SIZE: "2"
+          LISTEN_PORT: "6543"
+        ports:
+          - 6543:6543
     env:
       TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5433/intake_test
+      POOLER_URL: postgresql://postgres:postgres@localhost:6543/intake_test
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
@@ -107,16 +126,22 @@ jobs:
           uv run python -m intake.db.migrate --test
           uv run python -m intake.db.seed --test
       - run: docker build --file Dockerfile.api --tag intake-api .
-      - name: Start the API container
+      - name: Start the API container behind the pooler
         run: |
           docker run --detach --name api --network host \
-            --env DATABASE_URL="$TEST_DATABASE_URL" --env PORT=8000 intake-api
+            --env DATABASE_URL="$POOLER_URL" --env PORT=8000 intake-api
           for _ in $(seq 1 30); do
             curl --silent --fail http://localhost:8000/health && exit 0
             sleep 1
           done
           exit 1
       - run: bash scripts/smoke.sh http://localhost:8000
+      - name: A burst of parallel requests through the pooler
+        run: |
+          seq 1 60 | xargs -P 20 -I{} curl --silent --output /dev/null \
+            --write-out '%{http_code}\n' "http://localhost:8000/patients?limit=5" \
+            | sort | uniq -c | tee codes.txt
+          test "$(grep -vc ' 200$' codes.txt)" -eq 0
       - name: API container logs
         if: always()
         run: docker logs api
