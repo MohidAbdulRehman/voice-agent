@@ -83,9 +83,8 @@ def create_app(
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded)
     for module in (patients, calls, doctors, health, dashboard):
         app.include_router(module.router)
-    app.state.dashboard = (dashboard_dir / "index.html").is_file()
-    if app.state.dashboard:
-        app.mount("/dashboard", StaticFiles(directory=dashboard_dir, html=True), name="dashboard")
+    app.state.dashboard = False
+    mount_dashboard(app, dashboard_dir)
 
     # Each middleware wraps the ones added before it: the last added runs first.
     app.add_middleware(BodySizeLimitMiddleware)
@@ -99,6 +98,14 @@ def create_app(
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     return app
+
+
+def mount_dashboard(app: FastAPI, directory: Path) -> None:
+    """Serve the dashboard built into ``directory`` at /dashboard, once, if it has been built."""
+    if app.state.dashboard or not (directory / "index.html").is_file():
+        return
+    app.mount("/dashboard", StaticFiles(directory=directory, html=True), name="dashboard")
+    app.state.dashboard = True
 
 
 app = create_app()

@@ -29,6 +29,13 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "intake"
 
+[tool.vercel.fastapi.static]
+# At build time Vercel copies the app's StaticFiles mount (the dashboard, at
+# /dashboard) to its CDN, but skips mounts behind app-wide middleware unless
+# cdn = true. For those files our middleware only adds headers, and vercel.json
+# sets the same ones on the CDN.
+cdn = true
+
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",

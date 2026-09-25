@@ -5,7 +5,9 @@ from pathlib import Path
 
 import httpx
 import pytest
+from starlette.routing import Mount
 
+from intake.api.main import mount_dashboard
 from intake.core.services import Services
 from tests.api.conftest import build_app, client_for
 from tests.api.envelope import expect
@@ -57,6 +59,24 @@ async def test_the_built_dashboard_is_served_with_a_csp(services: Services, buil
     assert bare.status_code == 307
     assert bare.headers["location"].endswith("/dashboard/")
     assert expect(missing, 404)["code"] == "NOT_FOUND"
+
+
+async def test_a_dashboard_built_elsewhere_is_mounted_once(
+    unreachable: Services, tmp_path: Path, built_dashboard: Path
+):
+    # Vercel's entrypoint (app.py) mounts the build from the source tree, because the
+    # installed package is copied before the dashboard is built.
+    app = build_app(unreachable, tmp_path / "not-built")
+    mount_dashboard(app, built_dashboard)
+    mount_dashboard(app, built_dashboard)
+    async with client_for(app) as client:
+        page = await client.get("/dashboard/")
+        home = await client.get("/")
+
+    assert [route.path for route in app.routes if isinstance(route, Mount)] == ["/dashboard"]
+    assert page.status_code == 200
+    assert "<title>Dashboard</title>" in page.text
+    assert home.headers["location"] == "/dashboard/"
 
 
 @pytest.mark.parametrize(("built", "target"), [(True, "/dashboard/"), (False, "/docs")])

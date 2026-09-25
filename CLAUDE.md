@@ -102,7 +102,7 @@ Read the relevant document before coding that area. If code and a spec disagree,
 │       ├── lifecycle.py        # calls row, transcript, summary, shutdown handling
 │       ├── scripts.py          # fixed greeting/silence lines (EN/ES)
 │       └── prompts/system_prompt.md  +  loader.py
-├── dashboard/                  # React app; built into src/intake/api/static/ (Docker) or public/dashboard/ (Vercel CDN)
+├── dashboard/                  # React app; built into src/intake/api/static/, mounted at /dashboard (Vercel copies it to the CDN)
 ├── tests/{unit,db,api,agent,evals}/   # shared DB fixtures: tests/database.py
 ├── scripts/smoke.sh            # live API smoke check
 └── docs/specs/*.md   docs/alternatives/   docs/private/ (gitignored)   docs/manual-test-log.md
@@ -128,8 +128,7 @@ uv run uvicorn intake.api.main:app --reload   # API on :8000, docs at /docs (use
 uv run python -m intake.agent console      # talk to the agent in the terminal (no phone minutes)
 uv run python -m intake.agent dev          # register with LiveKit Cloud (phone/playground)
 cd dashboard && npm install && npm run dev    # dashboard on :5173/dashboard/, proxying API calls to :8000
-cd dashboard && npm test && npm run build     # Vitest; typecheck + build into src/intake/api/static (served at /dashboard)
-cd dashboard && npm run build:vercel          # what Vercel's build command runs: build into public/dashboard for the CDN
+cd dashboard && npm test && npm run build     # Vitest; typecheck + build into src/intake/api/static (served at /dashboard; Vercel's build runs it too)
 docker build --file Dockerfile.api --tag intake-api .   # local/Docker image: API + built dashboard
 bash scripts/smoke.sh http://localhost:8000   # live API smoke check (curl + jq); run against the Vercel URL before submitting
 ```

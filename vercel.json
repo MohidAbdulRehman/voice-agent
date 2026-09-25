@@ -1,10 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["iad1"],
-  "buildCommand": "cd dashboard && npm ci --no-audit --no-fund && npm run build:vercel",
+  "buildCommand": "cd dashboard && npm ci --no-audit --no-fund && npm run build",
   "functions": {
     "app.py": {
-      "excludeFiles": "{src/intake/agent/**,src/intake/api/static/**,tests/**,docs/**,dashboard/**,db/**,scripts/**,Dockerfile.api,docker-compose.yml,*.md}"
+      "excludeFiles": "{src/intake/agent/**,tests/**,docs/**,dashboard/**,db/**,scripts/**,Dockerfile.api,docker-compose.yml,*.md}"
     }
   },
   "crons": [{ "path": "/health", "schedule": "0 12 * * *" }],

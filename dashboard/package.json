@@ -11,8 +11,7 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsc --noEmit && vite build",
-    "build:vercel": "tsc --noEmit && vite build --outDir ../public/dashboard --emptyOutDir"
+    "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
     "react": "^19.3.0",

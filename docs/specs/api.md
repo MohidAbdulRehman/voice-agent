@@ -96,7 +96,7 @@ A call's `caller_number` is carrier metadata the caller never chose to give, so 
 
 ## Dashboard (`/dashboard`)
 
-React + Vite + TypeScript, built into static files. On Vercel, the build command writes them to `public/dashboard/` and the CDN serves them (with the dashboard's security headers from `vercel.json`); locally and in `Dockerfile.api`, FastAPI serves them from `src/intake/api/static/`. Either way it's the same origin as the API, so production needs no CORS.
+React + Vite + TypeScript, built into static files in `src/intake/api/static/`, which FastAPI mounts at `/dashboard`. On Vercel, the build copies that mount to the CDN, which serves the files with the dashboard's security headers from `vercel.json`; locally and in `Dockerfile.api`, FastAPI serves them. Either way it's the same origin as the API, so production needs no CORS.
 
 Features:
 - A patients table with search boxes that map to the three API filters.
@@ -115,5 +115,5 @@ The dashboard is **read-only** and unauthenticated, which is a documented limita
 - **Logging:** one JSON line per request with method, path, status, duration and request id. Request bodies and query strings are not logged; patient payloads are logged only by the agent's registration event. Every response carries the id as `X-Request-ID`.
 - **Caching:** API responses are `Cache-Control: no-store`, since they carry patient data.
 - **No authentication** by design for the review. This is a documented trade-off; next step would be an API key for writes.
-- **Deployment:** Vercel's Hobby plan, from `vercel.json`. The API is one Python function (entrypoint `app.py`) in `iad1` (Washington, D.C.), next to Supabase `us-east-1`; it installs only the API dependencies and connects through Supabase's **transaction pooler** (port 6543) with no client-side pool and no reused prepared statements. The build command builds the dashboard into `public/dashboard/` for the CDN. `Dockerfile.api` (a multi-stage build: Node builds the dashboard, then the Python runtime) stays for local and Docker hosting; `docs/alternatives/render.yaml` is an unused Render alternative.
+- **Deployment:** Vercel's Hobby plan, from `vercel.json`. The API is one Python function (entrypoint `app.py`) in `iad1` (Washington, D.C.), next to Supabase `us-east-1`; it installs only the API dependencies and connects through Supabase's **transaction pooler** (port 6543) with no client-side pool and no reused prepared statements. The build command builds the dashboard, and Vercel serves the app's `/dashboard` mount from its CDN (`[tool.vercel.fastapi.static] cdn = true` in `pyproject.toml`). `Dockerfile.api` (a multi-stage build: Node builds the dashboard, then the Python runtime) stays for local and Docker hosting; `docs/alternatives/render.yaml` is an unused Render alternative.
 - **Rate limits on Vercel** are counted per function instance (in memory), so they are best-effort when several instances run at once.

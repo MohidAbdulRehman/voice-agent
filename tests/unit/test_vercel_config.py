@@ -1,5 +1,6 @@
 """The Vercel deployment: entrypoint, region, bundle contents, dashboard build and headers."""
 
+import importlib
 import json
 import re
 import tomllib
@@ -12,9 +13,7 @@ from intake.api.middleware import DASHBOARD_CSP
 ROOT = Path(__file__).resolve().parents[2]
 VERCEL = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-DASHBOARD_SCRIPTS = json.loads((ROOT / "dashboard" / "package.json").read_text(encoding="utf-8"))[
-    "scripts"
-]
+VITE_CONFIG = (ROOT / "dashboard" / "vite.config.ts").read_text(encoding="utf-8")
 
 
 def _names(requirements: list[str]) -> set[str]:
@@ -36,6 +35,8 @@ def test_the_bundle_leaves_out_what_the_api_never_imports():
 
     for path in ("src/intake/agent/**", "tests/**", "docs/**", "dashboard/**", "db/**"):
         assert path in excluded
+    # The built dashboard stays: the function serves it if the CDN has no copy.
+    assert "src/intake/api/static" not in excluded
 
 
 def test_the_function_installs_only_api_dependencies():
@@ -47,9 +48,22 @@ def test_the_function_installs_only_api_dependencies():
     assert "uvicorn" in _names(PYPROJECT["project"]["optional-dependencies"]["server"])
 
 
-def test_the_build_writes_the_dashboard_to_the_cdn_folder():
-    assert "npm run build:vercel" in VERCEL["buildCommand"]
-    assert "--outDir ../public/dashboard" in DASHBOARD_SCRIPTS["build:vercel"]
+def test_the_entrypoint_mounts_the_dashboard_the_build_command_writes(monkeypatch):
+    # Vercel serves public/ only from committed files, so the build writes the dashboard
+    # into the source tree, and the entrypoint mounts it from there: Vercel copies the
+    # installed package before the build command runs, so it never has the files.
+    mounted = []
+    monkeypatch.setattr(main, "mount_dashboard", lambda app, path: mounted.append((app, path)))
+    importlib.reload(vercel_entrypoint)
+
+    assert VERCEL["buildCommand"].endswith("npm run build")
+    assert 'outDir: "../src/intake/api/static"' in VITE_CONFIG
+    assert mounted == [(main.app, ROOT / "src" / "intake" / "api" / "static")]
+
+
+def test_vercel_copies_the_dashboard_mount_to_the_cdn_despite_the_middleware():
+    # Without cdn = true, Vercel keeps mounts behind app-wide middleware in the function.
+    assert PYPROJECT["tool"]["vercel"]["fastapi"]["static"] == {"cdn": True}
 
 
 def test_a_daily_cron_keeps_the_free_database_awake():

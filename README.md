@@ -81,7 +81,7 @@ TODO: verify these steps from a clean clone.
 
 - Runs the FastAPI app (`app.py` re-exports `intake.api.main:app`) as one Python function in `iad1`.
 - Installs only the API's dependencies. Vercel runs `uv sync --no-dev` from `uv.lock`, which skips the `server` (uvicorn) and `agent` extras. The function bundle is about 50 MB, or about 70 MB with the bytecode Vercel precompiles, out of a 500 MB limit. `excludeFiles` also leaves out the agent code, tests, docs, the dashboard sources and the migrations.
-- Builds the dashboard into `public/dashboard/`, which the CDN serves with the same security headers the API sends.
+- Builds the dashboard into `src/intake/api/static/`, which the app mounts at `/dashboard`. Vercel copies that mount to its CDN (`[tool.vercel.fastapi.static] cdn = true` in `pyproject.toml`), and `vercel.json` gives those files the same security headers the API sends.
 - Redirects `/` to `/dashboard/`, and calls `/health` once a day (a Vercel Cron Job). `/health` runs `SELECT 1`, so the free Supabase project never pauses for inactivity.
 
 ### Vercel: environment variables

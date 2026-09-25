@@ -21,7 +21,6 @@ build/
 node_modules/
 dashboard/dist/
 src/intake/api/static/
-/public/
 
 # --- Playwright / test artifacts ---
 test-results/
