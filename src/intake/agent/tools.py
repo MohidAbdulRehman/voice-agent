@@ -155,6 +155,9 @@ class IntakeAgent(Agent):
     ) -> Facts:
         """Save the prepared record. Only after the caller clearly said the read-back is correct.
 
+        What's saved is exactly what the latest prepare_record returned. If the caller
+        corrected anything since, call prepare_record again first.
+
         Args:
             draft_id: The draft_id from the latest prepare_record result.
             caller_confirmed: True only if the caller confirmed every detail.
@@ -288,7 +291,8 @@ class IntakeAgent(Agent):
         if state.mode != "update" or state.target_patient_id is None:
             return _refused(
                 "no_patient_to_update",
-                "Update only after the caller chose to update their existing record.",
+                "There's no existing record to update. For a new patient, use action create "
+                "with every detail, including any correction.",
             )
         try:
             changes = self._services.patients.validate_changes(data, accept_state_names=True)

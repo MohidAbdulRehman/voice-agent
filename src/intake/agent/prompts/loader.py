@@ -14,15 +14,28 @@ PROMPT_FILE = Path(__file__).with_name("system_prompt.md")
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _PLACEHOLDER = re.compile(r"\{\{\s*(\w+)\s*\}\}")
 _BLANK_LINES = re.compile(r"\n{3,}")
+BEST_NUMBER = "Is the number you're calling from the best one to reach you?"
 
 
-def spoken_caller_number(caller_number: str | None) -> str:
-    """The caller's number as the prompt shows it: grouped spoken digits, or ``unknown``."""
+def caller_line(caller_number: str | None) -> str:
+    """What the prompt says about the caller's number.
+
+    The "best number" question is written in only when there's a US number to offer.
+    In testing, the model asked it even when the prompt said the number was unknown
+    and the rule said not to.
+    """
     if caller_number is None:
-        return "unknown"
+        return "The caller's number is unknown, so ask for their phone number."
     if len(caller_number) == 10 and caller_number.isdigit():
-        return say_phone(caller_number, "English")
-    return caller_number
+        spoken = say_phone(caller_number, "English")
+        return (
+            f"The caller is calling from {spoken} ({caller_number}). "
+            f'When you get to the phone number, you may ask "{BEST_NUMBER}"'
+        )
+    return (
+        f"The caller is calling from {caller_number}, which isn't a US number, "
+        "so ask for their phone number."
+    )
 
 
 def render_prompt(
@@ -47,7 +60,7 @@ def render_prompt(
         "clinic_name": clinic_name,
         "today": f"{today:%A, %B} {today.day}, {today.year}",
         "timezone": timezone,
-        "caller_number": spoken_caller_number(caller_number),
+        "caller_line": caller_line(caller_number),
     }
     filled = _PLACEHOLDER.sub(lambda match: values[match.group(1)], _COMMENT.sub("", text))
     return _BLANK_LINES.sub("\n\n", filled).strip() + "\n"

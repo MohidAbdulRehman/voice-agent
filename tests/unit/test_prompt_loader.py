@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from intake.agent.prompts.loader import PROMPT_FILE, render_prompt, spoken_caller_number
+from intake.agent.prompts.loader import BEST_NUMBER, PROMPT_FILE, render_prompt
 
 THURSDAY = date(2026, 9, 24)
 
@@ -33,16 +33,30 @@ def test_the_real_prompt_has_no_comments_or_placeholders_left():
 
 
 @pytest.mark.parametrize(
-    ("caller_number", "spoken"),
+    ("caller_number", "sentence", "offers_it"),
     [
-        ("5125550143", "five one two, five five five, zero one four three"),
-        (None, "unknown"),
-        ("+442079460000", "+442079460000"),  # not a US number: shown as the carrier sent it
+        (
+            "5125550143",
+            "The caller is calling from five one two, five five five, zero one four three "
+            "(5125550143).",
+            True,
+        ),
+        (None, "The caller's number is unknown, so ask for their phone number.", False),
+        (
+            "+442079460000",  # kept as the carrier sent it
+            "The caller is calling from +442079460000, which isn't a US number, so ask for "
+            "their phone number.",
+            False,
+        ),
     ],
 )
-def test_the_caller_number_is_given_as_spoken_digits(caller_number: str | None, spoken: str):
-    assert spoken_caller_number(caller_number) == spoken
-    assert f"The caller's number is {spoken}." in _render(caller_number)
+def test_the_best_number_question_is_offered_only_for_a_us_number(
+    caller_number: str | None, sentence: str, offers_it: bool
+):
+    prompt = _render(caller_number)
+
+    assert sentence in prompt
+    assert (BEST_NUMBER in prompt) is offers_it
 
 
 def test_a_multi_line_comment_is_removed_whole():

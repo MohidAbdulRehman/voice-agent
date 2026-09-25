@@ -21,8 +21,8 @@ Python, LiveKit Agents, under `src/intake/agent/`. **Before writing any LiveKit 
 | Noise | Telephony-optimized noise cancellation for SIP participants, if the plan supports it. Skip it gracefully if not. |
 | Background audio | Office ambience at low volume, plus keyboard typing as the "thinking" sound during tool calls, so saves sound like typing rather than dead air |
 | Greeting | Fixed text via `say`, not LLM-generated (faster, cheaper, deterministic). It must name the clinic and say "virtual assistant". The first sentence can't be interrupted. See §6. |
-| Prompt | `prompts/system_prompt.md`. The loader strips `<!-- … -->` comments, then fills `{{agent_name}} {{clinic_name}} {{today}} {{timezone}} {{caller_number}}`. `today` is computed in `CLINIC_TIMEZONE`, e.g. "Thursday, September 24, 2026". |
-| Caller ID | Read from the SIP participant's attributes (check the current key in LiveKit's SIP participant reference). Store it on the `calls` row; show it to the LLM as spoken digits, or "unknown". |
+| Prompt | `prompts/system_prompt.md`. The loader strips `<!-- … -->` comments, then fills `{{agent_name}} {{clinic_name}} {{today}} {{timezone}} {{caller_line}}`. The loader writes `caller_line` itself: a US caller number as spoken digits followed by the "best number" question, or a request for the phone number when there's no number or it isn't a US one. `today` is computed in `CLINIC_TIMEZONE`, e.g. "Thursday, September 24, 2026". |
+| Caller ID | Read from the SIP participant's attributes (check the current key in LiveKit's SIP participant reference). Store it on the `calls` row; show it to the LLM as spoken digits, or say there's no number (see Prompt). |
 | Silence | After about 12 s of caller silence, say "Are you still there?". After a second silence, say a polite goodbye and call `end_call(no_response)`. |
 | Call length cap | At `MAX_CALL_MINUTES` (default 12), the agent wraps up politely: it finishes if confirmed, otherwise it says staff will follow up. This protects the free minutes. |
 | Metrics | Log LLM, STT and TTS latency metrics per turn (debug level), plus a per-call summary line (info). |
@@ -82,6 +82,7 @@ Side effect: remembers the matched `patient_id` in state (the most recently upda
 - **update:** requires a prior `found` lookup that the caller chose to update. `fields` holds **only the changes**.
 - **ok:** `{"status": "ok", "draft_id": "d-7f3a", "readback": [{"group": "name", "spoken": "Jane Davis, that's D-A-V-I-S"}, …]}`.
   - `readback` groups and spoken forms come from `core/speech.py`, in `state.language`.
+  - It's always the full read-back. After a correction, the agent reads out only the groups that changed. The tool doesn't trim the list, because the model sometimes calls `prepare_record` just to check the details without reading anything out; a trimmed read-back could then leave the caller never hearing some of the details before they're saved.
   - Every call creates a new draft and **invalidates earlier drafts**.
 - Side effect: writes the normalized data to `calls.final_payload` (status stays `in_progress`), so an abandoned call still leaves a trace.
 
