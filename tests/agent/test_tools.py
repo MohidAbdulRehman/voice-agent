@@ -416,16 +416,24 @@ async def _rival_call(services: Services, slot: SlotRef) -> FakeRunContext:
 # --- end_call, and the rules every tool follows ------------------------------------
 
 
-async def test_end_call_waits_for_the_goodbye_then_ends_the_session(
+async def test_end_call_hangs_up_only_after_the_goodbye_is_spoken(
     agent: IntakeAgent, call: FakeRunContext
 ):
     result = await agent.end_call(call, reason="completed")
 
-    assert result.output == {"status": "ending"}
-    assert result.reply_required is False  # nothing more to say
-    assert call.playouts_awaited == 1
-    assert call.session.shutdowns == [True]  # drain: finish speaking first
+    assert result == {"status": "ending"}  # the LLM answers it with the goodbye
+    assert call.session.shutdowns == []  # still speaking
+    call.speech_handle.finish()  # the reply, goodbye included, has played
+    assert call.session.shutdowns == [True]
     assert call.userdata.end_reason == "completed"
+
+
+async def test_an_earlier_end_reason_is_kept(agent: IntakeAgent, call: FakeRunContext):
+    call.userdata.end_reason = "time_limit"
+
+    await agent.end_call(call, reason="completed")
+
+    assert call.userdata.end_reason == "time_limit"
 
 
 @pytest.mark.usefixtures("restore_logging")

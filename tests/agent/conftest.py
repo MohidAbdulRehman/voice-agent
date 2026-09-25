@@ -42,19 +42,30 @@ class FakeSession:
 
 
 @dataclass
+class FakeSpeechHandle:
+    """The reply being spoken; ``finish`` plays it to the end."""
+
+    callbacks: list[Callable[["FakeSpeechHandle"], None]] = field(default_factory=list)
+
+    def add_done_callback(self, callback: Callable[["FakeSpeechHandle"], None]) -> None:
+        self.callbacks.append(callback)
+
+    def finish(self) -> None:
+        for callback in self.callbacks:
+            callback(self)
+
+
+@dataclass
 class FakeRunContext:
     """The parts of LiveKit's ``RunContext`` the tools use."""
 
     userdata: CallState
     session: FakeSession = field(default_factory=FakeSession)
+    speech_handle: FakeSpeechHandle = field(default_factory=FakeSpeechHandle)
     interruptible: bool = True
-    playouts_awaited: int = 0
 
     def disallow_interruptions(self) -> None:
         self.interruptible = False
-
-    async def wait_for_playout(self) -> None:
-        self.playouts_awaited += 1
 
 
 @pytest.fixture(autouse=True)

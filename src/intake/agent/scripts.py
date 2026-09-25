@@ -40,9 +40,9 @@ SILENCE_GOODBYE: dict[SpokenLanguage, str] = {
 # Instructions for the LLM (not spoken as is) when the call reaches MAX_CALL_MINUTES.
 TIME_LIMIT = (
     "The call has reached its time limit, so wrap up now, in the caller's language. "
-    "If commit_record already returned saved, say a warm one-sentence goodbye. Otherwise "
-    "apologize and say the clinic's staff will call them back at their phone number to "
-    "finish. Then call end_call."
+    "Call end_call, then: if commit_record already returned saved, say a warm "
+    "one-sentence goodbye; otherwise apologize and say the clinic's staff will call "
+    "them back at their phone number to finish."
 )
 
 # Instructions for the one-off LLM call that summarizes a finished call for staff.

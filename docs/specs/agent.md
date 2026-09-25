@@ -121,7 +121,7 @@ Inserts with `booked_via = 'voice_agent'` and `call_id`. The database exclusion 
 Switches the TTS voice and language, sets `state.language` (read-backs and spoken forms follow it) and updates `calls.language`. Returns `{"status": "ok", "language": "Spanish"}`. It does **not** change `preferred_language` by itself; the prompt asks the LLM to include that in the record.
 
 ### `end_call(reason: "completed" | "caller_request" | "no_response" | "emergency" | "out_of_scope")`
-Waits for current speech to finish (`wait_for_playout`), then shuts the session down with `drain=True`. The session is started with `RoomOptions(delete_room_on_close=True)`, so closing it deletes the room, which hangs up a phone call (in console mode LiveKit skips the delete). Finalization then happens in the shutdown handler. Returns `{"status": "ending"}` without asking the LLM for another reply.
+Hangs up once the current reply has been spoken, including the goodbye the LLM says in answer to this result: it shuts the session down from the speech handle's done callback, as LiveKit's `EndCallTool` does. So the prompt has the LLM call `end_call` first and say its last words after it; a goodbye can't be skipped or cut off. The session is started with `RoomOptions(delete_room_on_close=True)`, so closing it deletes the room, which hangs up a phone call (in console mode LiveKit skips the delete); the session's close also ends the job, which runs the shutdown handler. Returns `{"status": "ending"}`.
 
 ## 5. Call lifecycle and persistence
 

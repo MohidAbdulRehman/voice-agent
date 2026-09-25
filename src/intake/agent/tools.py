@@ -21,7 +21,6 @@ from uuid import UUID, uuid4
 
 import structlog
 from livekit.agents import Agent, RunContext, function_tool
-from livekit.agents.llm import ToolResult
 from pydantic import BaseModel, Field
 
 from intake.agent.state import CallState, Draft, Mode, SlotRef
@@ -210,16 +209,17 @@ class IntakeAgent(Agent):
         return await self._run("set_language", self._set_language(context.userdata, language))
 
     @function_tool()
-    async def end_call(self, context: RunContext[CallState], reason: EndReason) -> ToolResult:
-        """Hang up. Say your goodbye first: the call ends once it has been spoken.
+    async def end_call(self, context: RunContext[CallState], reason: EndReason) -> Facts:
+        """Hang up after your next words. Call this first, then say your goodbye.
+
+        The call ends as soon as that goodbye has been spoken.
 
         Args:
             reason: completed when everything is done; caller_request when they want to go;
-                no_response when they stopped answering; emergency after the 911 advice;
+                no_response when they stopped answering; emergency for the 911 advice;
                 out_of_scope when they only needed something you can't help with.
         """
-        facts = await self._run("end_call", self._end(context, reason))
-        return ToolResult(facts, reply_required=facts["status"] != "ending")
+        return await self._run("end_call", self._end(context, reason))
 
     # --- implementation ----------------------------------------------------------
 
@@ -515,8 +515,9 @@ class IntakeAgent(Agent):
     async def _end(self, context: RunContext[CallState], reason: EndReason) -> dict[str, Any]:
         state = context.userdata
         state.end_reason = state.end_reason or reason  # a reason set earlier (time limit) wins
-        await context.wait_for_playout()  # let the goodbye finish
-        context.session.shutdown(drain=True)
+        # The LLM's reply to this result (the goodbye) plays under the same speech handle,
+        # so the session closes only once it has been spoken, as LiveKit's EndCallTool does.
+        context.speech_handle.add_done_callback(lambda _speech: context.session.shutdown())
         return {"status": "ending"}
 
 
