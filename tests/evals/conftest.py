@@ -2,7 +2,8 @@
 
 Opt-in, because every run spends LLM credits: ``uv run pytest -m evals``. The LLM
 and LiveKit credentials come from .env; the database is still the local test
-database, as in every other test.
+database, as in every other test. The run ends with the tokens it used and, for
+models with a known price, what they cost.
 """
 
 import json
@@ -13,6 +14,7 @@ from uuid import uuid4
 
 import pytest
 from livekit.agents import AgentSession, inference, llm
+from livekit.agents.metrics import LLMModelUsage, ModelUsageCollector
 from livekit.agents.voice.run_result import RunResult
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -25,6 +27,33 @@ from intake.agent.tools import AgentDeps, IntakeAgent
 from intake.config import Settings
 from intake.core.services import Services, build_services, utc_now
 from intake.core.validation import clinic_today
+
+# Every LLM call the evals make, the agent's and the judge's.
+USAGE = ModelUsageCollector()
+# LiveKit Inference, US$ per million tokens: input, cached input, output (September 2026).
+PRICES = {"openai/gpt-4.1-mini": (0.40, 0.10, 1.60)}
+
+
+def pytest_terminal_summary(terminalreporter: pytest.TerminalReporter) -> None:
+    """After an eval run, the tokens it used and what they cost."""
+    usage = [entry for entry in USAGE.flatten() if isinstance(entry, LLMModelUsage)]
+    if not usage:
+        return
+    terminalreporter.write_sep("-", "LLM usage")
+    for entry in usage:
+        fresh = entry.input_tokens - entry.input_cached_tokens
+        line = (
+            f"{entry.provider} {entry.model}: {entry.input_tokens:,} input tokens "
+            f"({entry.input_cached_tokens:,} cached), {entry.output_tokens:,} output tokens"
+        )
+        if price := PRICES.get(entry.model):
+            dollars = (
+                fresh * price[0]
+                + entry.input_cached_tokens * price[1]
+                + entry.output_tokens * price[2]
+            ) / 1_000_000
+            line += f", about ${dollars:.3f}"
+        terminalreporter.write_line(line)
 
 
 @dataclass
@@ -86,33 +115,32 @@ def eval_settings() -> Settings:
 async def judge(eval_settings: Settings) -> AsyncIterator[llm.LLM]:
     """The LLM that grades the agent's replies."""
     async with inference.LLM(model=eval_settings.llm_primary_model) as model:
+        model.on("metrics_collected", USAGE.collect)
         yield model
 
 
 @pytest.fixture
-async def conversation(
-    request: pytest.FixtureRequest, engine: AsyncEngine, eval_settings: Settings
-) -> AsyncIterator[Conversation]:
-    """A new call, already greeted. Parametrize indirectly to override settings."""
-    settings = eval_settings.model_copy(update=getattr(request, "param", {}))
-    services = build_services(engine, settings)
+async def conversation(engine: AsyncEngine, eval_settings: Settings) -> AsyncIterator[Conversation]:
+    """A new call, already greeted."""
+    services = build_services(engine, eval_settings)
     state = await open_call(
         services, room_name=f"eval-{uuid4().hex[:12]}", channel="console", caller_number=None
     )
+    clinic, persona = eval_settings.clinic_name, eval_settings.agent_persona_name
     prompt = render_prompt(
-        agent_name=settings.agent_persona_name,
-        clinic_name=settings.clinic_name,
-        today=clinic_today(utc_now(), settings.clinic_zone),
-        timezone=settings.clinic_timezone,
+        agent_name=persona,
+        clinic_name=clinic,
+        today=clinic_today(utc_now(), eval_settings.clinic_zone),
+        timezone=eval_settings.clinic_timezone,
         caller_number=None,
     )
-    deps = AgentDeps(services=services, settings=settings, switch_voice=lambda _language: None)
+    deps = AgentDeps(services=services, settings=eval_settings, switch_voice=lambda _language: None)
     agent = IntakeAgent(instructions=prompt, deps=deps)
-    async with AgentSession[CallState](llm=build_llm(settings), userdata=state) as session:
+    model = build_llm(eval_settings)
+    model.on("metrics_collected", USAGE.collect)  # the fallback adapter passes on each model's
+    async with AgentSession[CallState](llm=model, userdata=state) as session:
         await session.start(agent)
-        opener, rest = scripts.greeting(
-            "English", clinic_name=settings.clinic_name, agent_name=settings.agent_persona_name
-        )
+        opener, rest = scripts.greeting("English", clinic_name=clinic, agent_name=persona)
         history = agent.chat_ctx.copy()
         history.add_message(role="assistant", content=f"{opener} {rest}")
         await agent.update_chat_ctx(history)

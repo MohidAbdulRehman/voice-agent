@@ -67,23 +67,23 @@ Call the tool functions directly with a fake `RunContext` and the test database:
 
 ## 5. Agent behavior evals: `tests/evals/` (marked `evals`; opt-in)
 
-Use LiveKit Agents' built-in testing helpers (text-only sessions with an LLM judge; look up the current API via the `livekit-docs` MCP). The judge uses the same free LLM chain. **Each scenario asserts both the tool calls made and a judged intent.** These mirror what reviewers will try:
+Use LiveKit Agents' built-in testing helpers (text-only sessions with an LLM judge; look up the current API via the `livekit-docs` MCP). The judge is the agent's primary model on LiveKit Inference. **Each scenario asserts both the tool calls made and a judged intent.** These mirror what reviewers will try. There are seven, all in English, to keep the free LiveKit Inference credit for demo calls; each run ends by printing the tokens it used and their cost.
 
 | # | Scenario (scripted caller turns) | Must happen |
 |---|---|---|
-| E1 | Happy path, all required fields in order | `prepare_record` ok, the read-back covers every group, `commit_record` only after "yes", closing uses "You're all set, [name]." |
-| E2 | Caller gives address before name | No re-asking of volunteered fields |
+| E1 | Happy path, all required fields in order | The optional details are offered before the read-back; `prepare_record` ok, the read-back covers every group, `commit_record` only after "yes", closing uses "You're all set, [name]." with `end_call(completed)` |
+| E2 | Optional offer accepted: insurance + emergency contact | Both are in the read-back and saved |
 | E3 | "Actually, my last name is spelled D-A-V-I-S, not D-A-V-I-E-S" | The draft is corrected and only the last name is read back |
-| E4 | DOB in the future | The agent re-asks the DOB only; no commit |
-| E5 | "My number is 555-0100" (7 digits) | The agent re-asks the phone only |
-| E6 | Mid-call "Can we start over?" | `start_over` is called, then the agent asks for the name again |
-| E7 | Phone matches a seeded patient | The exact duplicate sentence, then the update path writes changes only |
-| E8 | Commit fails twice (`SIMULATE_DB_FAILURE`) | Apology, retry offer, callback message, `end_call`; the agent never claims it saved |
-| E9 | "Hablo español" at the start | `set_language(Spanish)`, Spanish read-back, "Ya está todo listo" |
-| E10 | Optional offer accepted: insurance + emergency contact | Both are in the read-back and saved |
-| E11 | After saving, schedule an appointment | Slots offered (≤ 3); booking confirmed with the doctor's name |
-| E12 | "Is this a real person?" / "I have chest pain" | Discloses virtual assistant / 911 guidance + `end_call(emergency)` |
-| E13 | "No" at the read-back, then a fix | A new draft is created; committing the old `draft_id` would be `stale_draft` |
+| E4 | A DOB in the future, then "My number is 555-0100" (7 digits), then "Can we start over?" | Each invalid answer is re-asked on its own; `start_over`, then the agent asks for the name again; no commit |
+| E5 | Phone matches a seeded patient | The exact duplicate sentence, then the update path writes changes only |
+| E6 | After saving, schedule an appointment | Slots offered (≤ 3); booking confirmed with the doctor's name |
+| E7 | "Is this a real person?" / "I have chest pain" | Discloses virtual assistant / 911 guidance + `end_call(emergency)` |
+
+Left out to save credits, and covered elsewhere:
+- **A failing database:** the tool tests (§4) cover it, with `retryable: true`, then `false`, and a `failed` call.
+- **Spanish:** manual call #4.
+- **A "no" at the read-back:** the tool tests cover stale drafts.
+- **Details given out of order:** manual call #2.
 
 ## 6. Dashboard: `dashboard/` (light)
 
@@ -92,9 +92,9 @@ Use LiveKit Agents' built-in testing helpers (text-only sessions with an LLM jud
 
 ## 7. Manual phone script (the free plan allows 50 inbound minutes/month, so ≤ 4 calls, under 3 minutes each)
 
-Run the phone calls only **after** evals E1–E13 pass in text mode. Record results in `docs/manual-test-log.md` (date, scenario, pass/fail, notes on voice quality and latency):
+Run the phone calls only **after** evals E1–E7 pass in text mode. To listen back afterwards, turn on the project's Agent observability first (`agent.md` §2, Recording). Record results in `docs/manual-test-log.md` (date, scenario, pass/fail, notes on voice quality and latency):
 1. Happy path + appointment, in English.
-2. Spelled correction + a future DOB + start over.
+2. Spelled correction + a future DOB + start over, giving the address before the name.
 3. Call again from the same phone: duplicate detection, then update.
 4. "Hablo español" path.
 

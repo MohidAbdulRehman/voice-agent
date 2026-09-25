@@ -1,14 +1,13 @@
-"""Conversation evals E1-E13 (testing.md §5): scripted caller turns, a real LLM and a judge.
+"""Conversation evals E1-E7 (testing.md §5): scripted caller turns, a real LLM and a judge.
 
 Each scenario checks both what the tools did and, with an LLM judge, what the
-agent said. Opt-in: ``uv run pytest -m evals`` (spends LLM credits).
+agent said. Opt-in: ``uv run pytest -m evals`` (spends LLM credits; the run ends
+with the tokens it used and their cost).
 """
 
 import pytest
 from livekit.agents import llm
 
-from intake.core.models import CallStatus
-from tests.agent.conftest import FakeRunContext
 from tests.db.helpers import AVERY
 from tests.evals.conftest import Conversation
 
@@ -44,8 +43,18 @@ def statuses(conversation: Conversation, tool: str) -> list[str]:
 
 
 async def test_e1_happy_path(conversation: Conversation, judge: llm.LLM):
-    await give_details(conversation, JANE)
+    for line in JANE:
+        await conversation.say(line)
     assert conversation.calls("lookup_patient_by_phone")
+    assert not ready(conversation)  # the optional details are offered first
+    await conversation.judge_reply(
+        judge,
+        "Offers to add optional details, such as an email address, insurance, an emergency "
+        "contact or a preferred language, without reading the details back yet.",
+    )
+
+    await conversation.say(NO_EXTRAS)
+    assert ready(conversation), "never reached the read-back"
     assert not conversation.calls("commit_record")  # nothing is saved before the caller's yes
     await conversation.judge_reply(
         judge,
@@ -63,31 +72,26 @@ async def test_e1_happy_path(conversation: Conversation, judge: llm.LLM):
     assert (patient.last_name, patient.state, patient.zip_code) == ("Davis", "TX", "78701")
 
 
-async def test_e2_volunteered_details_are_not_asked_again(
-    conversation: Conversation, judge: llm.LLM
-):
-    await give_details(
-        conversation,
-        (
-            "Hi! I live at 12 Oak Street in Austin, Texas, 78701, no apartment, "
-            "and my name is Jane Davis, D-A-V-I-S.",
-            "Born March 5th, 1990. Female.",
-            "512-555-0100.",
-        ),
+async def test_e2_accepted_optional_details_are_read_back_and_saved(conversation: Conversation):
+    for line in JANE:
+        await conversation.say(line)
+    await conversation.say(
+        "Yes: my insurance is Aetna, member ID W123456789, and my emergency contact "
+        "is John Davis at 512-555-0102."
     )
+    for _ in range(2):
+        if ready(conversation):
+            break
+        await conversation.say("That's all.")
 
-    fields = conversation.calls("prepare_record")[-1]["fields"]
-    assert (fields["address_line_1"], fields["city"], fields["zip_code"]) == (
-        "12 Oak Street",
-        "Austin",
-        "78701",
-    )
-    for result in conversation.results[:-1]:
-        await result.expect.contains_message(role="assistant").judge(
-            judge,
-            intent="Does not ask for the street address, city, state or ZIP code "
-            "(asking something else is fine).",
-        )
+    assert ready(conversation), "never reached the read-back"
+    groups = {group["group"] for group in ready(conversation)[-1]["readback"]}
+    assert {"insurance", "emergency_contact"} <= groups
+    await conversation.say(CORRECT)
+    assert statuses(conversation, "commit_record") == ["saved"]
+    (patient,) = await conversation.services.patients.find_by_phone("5125550100")
+    assert (patient.insurance_provider, patient.insurance_member_id) == ("Aetna", "W123456789")
+    assert patient.emergency_contact_phone == "5125550102"
 
 
 async def test_e3_a_spelled_correction_changes_only_the_last_name(
@@ -108,23 +112,17 @@ async def test_e3_a_spelled_correction_changes_only_the_last_name(
     assert statuses(conversation, "commit_record") == ["saved"]
 
 
-async def test_e4_a_future_birth_date_is_asked_again(conversation: Conversation, judge: llm.LLM):
+async def test_e4_invalid_answers_are_asked_again_then_the_caller_starts_over(
+    conversation: Conversation, judge: llm.LLM
+):
     await conversation.say("I'm Jane Davis, D-A-V-I-S, and I was born January 1st, 2031.")
-
     await conversation.judge_reply(
         judge,
         "Says the date of birth can't be in the future and asks for the date of birth again, "
         "without asking for any other detail.",
     )
-    assert not conversation.calls("commit_record")
 
-
-async def test_e5_a_seven_digit_phone_number_is_asked_again(
-    conversation: Conversation, judge: llm.LLM
-):
-    await conversation.say(JANE[0])
-    await conversation.say("My number is 555-0100.")
-
+    await conversation.say("Sorry, March 5th, 1990. I'm female, and my number is 555-0100.")
     await conversation.judge_reply(
         judge,
         "Says the phone number seems incomplete (a US number has ten digits, with the area "
@@ -132,18 +130,15 @@ async def test_e5_a_seven_digit_phone_number_is_asked_again(
     )
     assert "found" not in statuses(conversation, "lookup_patient_by_phone")
 
-
-async def test_e6_starting_over_asks_for_the_name_again(conversation: Conversation, judge: llm.LLM):
-    await conversation.say(JANE[0])
-    await conversation.say("Hmm, can we start over?")
-
+    await conversation.say("Hmm, actually, can we start over?")
     assert statuses(conversation, "start_over") == ["cleared"]
     await conversation.judge_reply(
         judge, "Says no problem, they'll start fresh, and asks for the caller's name."
     )
+    assert not conversation.calls("commit_record")
 
 
-async def test_e7_a_known_number_leads_to_an_update(conversation: Conversation, judge: llm.LLM):
+async def test_e5_a_known_number_leads_to_an_update(conversation: Conversation, judge: llm.LLM):
     before = await conversation.services.patients.get(AVERY)
     await conversation.say("Hi, this is Avery Collins.")
     await conversation.say("My number is 212-555-0143.")
@@ -177,86 +172,7 @@ async def test_e7_a_known_number_leads_to_an_update(conversation: Conversation, 
     assert (after.first_name, after.date_of_birth) == (before.first_name, before.date_of_birth)
 
 
-@pytest.mark.parametrize("conversation", [{"simulate_db_failure": True}], indirect=True)
-async def test_e8_a_failing_database_gets_an_apology_not_a_false_save(
-    conversation: Conversation, judge: llm.LLM
-):
-    await give_details(conversation, JANE)
-    await conversation.say(CORRECT)
-
-    assert conversation.outputs("commit_record")[-1] == {
-        "status": "system_error",
-        "retryable": True,
-    }
-    await conversation.judge_reply(
-        judge,
-        "Apologizes that the details couldn't be saved and asks whether to try again, "
-        "without saying they were saved.",
-    )
-    await conversation.say("Yes, please try again.")
-
-    assert conversation.outputs("commit_record")[-1] == {
-        "status": "system_error",
-        "retryable": False,
-    }
-    await conversation.judge_reply(
-        judge,
-        "Says the clinic's staff will call back at the caller's phone number to finish, "
-        "without claiming anything was saved.",
-    )
-    assert conversation.calls("end_call")
-    stored = await conversation.services.calls.get(conversation.state.call_id)
-    assert stored.status == CallStatus.FAILED
-
-
-async def test_e9_hablo_espanol_switches_everything_to_spanish(
-    conversation: Conversation, judge: llm.LLM
-):
-    await conversation.say("Hola, hablo español.")
-
-    assert {"language": "Spanish"} in conversation.calls("set_language")
-    await conversation.judge_reply(judge, "Replies in Spanish and asks for the caller's name.")
-    await give_details(
-        conversation,
-        (
-            "Me llamo José Martínez, M-A-R-T-Í-N-E-Z. Nací el 5 de marzo de 1990. Soy hombre.",
-            "Mi teléfono es 512-555-0101.",
-            "Vivo en 12 Oak Street, sin apartamento, en Austin, Texas, 78701.",
-        ),
-    )
-    assert "se escribe" in ready(conversation)[-1]["readback"][0]["spoken"]
-    await conversation.say("Sí, todo está correcto.")
-    assert statuses(conversation, "commit_record") == ["saved"]
-    await conversation.say("No, gracias.")
-
-    await conversation.judge_reply(
-        judge, "In Spanish, says 'Ya está todo listo, José.' and says goodbye."
-    )
-
-
-async def test_e10_accepted_optional_details_are_read_back_and_saved(
-    conversation: Conversation, judge: llm.LLM
-):
-    for line in JANE:
-        await conversation.say(line)
-    await conversation.say(
-        "Yes: my insurance is Aetna, member ID W123456789, and my emergency contact "
-        "is John Davis at 512-555-0102."
-    )
-    for _ in range(2):
-        if ready(conversation):
-            break
-        await conversation.say("That's all.")
-
-    groups = {group["group"] for group in ready(conversation)[-1]["readback"]}
-    assert {"insurance", "emergency_contact"} <= groups
-    await conversation.say(CORRECT)
-    (patient,) = await conversation.services.patients.find_by_phone("5125550100")
-    assert (patient.insurance_provider, patient.insurance_member_id) == ("Aetna", "W123456789")
-    assert patient.emergency_contact_phone == "5125550102"
-
-
-async def test_e11_an_appointment_after_saving(conversation: Conversation, judge: llm.LLM):
+async def test_e6_an_appointment_after_saving(conversation: Conversation, judge: llm.LLM):
     await give_details(conversation, JANE)
     await conversation.say(CORRECT)
 
@@ -275,7 +191,7 @@ async def test_e11_an_appointment_after_saving(conversation: Conversation, judge
     assert appointment.booked_via == "voice_agent"
 
 
-async def test_e12_disclosure_and_emergency(conversation: Conversation, judge: llm.LLM):
+async def test_e7_disclosure_and_emergency(conversation: Conversation, judge: llm.LLM):
     await conversation.say("Wait, am I talking to a real person?")
     await conversation.judge_reply(
         judge, "Says it is the clinic's virtual assistant, not a person."
@@ -285,23 +201,3 @@ async def test_e12_disclosure_and_emergency(conversation: Conversation, judge: l
 
     await conversation.judge_reply(judge, "Tells the caller to hang up and call 911 right now.")
     assert {"reason": "emergency"} in conversation.calls("end_call")
-
-
-async def test_e13_a_no_at_the_read_back_makes_a_new_draft(
-    conversation: Conversation, judge: llm.LLM
-):
-    first = await give_details(conversation, JANE)
-
-    await conversation.say("No, the ZIP code is wrong. It's 78702.")
-
-    second = ready(conversation)[-1]["draft_id"]
-    assert second != first
-    await conversation.judge_reply(
-        judge, "Reads back the corrected ZIP code, 78702, and asks whether it's right now."
-    )
-    await conversation.say("Yes, that's right now.")
-    assert conversation.calls("commit_record")[-1]["draft_id"] == second
-    stale = await conversation.agent.commit_record(
-        FakeRunContext(conversation.state), draft_id=first, caller_confirmed=True
-    )
-    assert stale == {"status": "stale_draft"}

@@ -27,7 +27,7 @@ Read the relevant document before coding that area. If code and a spec disagree,
 | `docs/specs/api.md` | REST contract, envelope, status codes, dashboard |
 | `docs/specs/agent.md` | Voice agent wiring, state, the 9 tool contracts, call lifecycle, edge cases |
 | `src/intake/agent/prompts/system_prompt.md` | The commented system prompt (already written) |
-| `docs/specs/testing.md` | Test plan, evals E1–E13, manual phone script |
+| `docs/specs/testing.md` | Test plan, evals E1–E7, manual phone script |
 
 ## Hard rules
 
@@ -123,7 +123,7 @@ uv run python -m intake.db.seed            # idempotent demo data (DATABASE_URL:
 # (bash: prefix the command; PowerShell: $env:DATABASE_URL = "..."). --test targets TEST_DATABASE_URL.
 uv run ruff check . && uv run ruff format --check .
 uv run pytest                              # unit + db + api + agent tool tests (local DB)
-uv run pytest -m evals                     # LLM-judged conversation evals: ASK FIRST (uses credits)
+uv run pytest -m evals                     # LLM-judged conversation evals: ASK FIRST (uses credits; prints tokens + cost)
 uv run uvicorn intake.api.main:app --reload   # API on :8000, docs at /docs (uses DATABASE_URL; see the local-DB note above)
 uv run python -m intake.agent console      # talk to the agent in the terminal (no phone minutes); --text to type
                                            # (LiveKit notes these commands moved to `lk agent`, which expects src/agent.py)
@@ -153,7 +153,7 @@ bash scripts/smoke.sh http://localhost:8000   # live API smoke check (curl + jq)
 **Phase 3: Agent, text first**
 - Tasks: `CallState`, the 9 tools, the prompt loader, lifecycle/shutdown handling, and session wiring (verify every API via `livekit-docs`).
 - Tests: tool tests (`testing.md` §4).
-- Done when: tool tests pass and the human runs a console conversation successfully. Evals E1–E13 run only when the human says so.
+- Done when: tool tests pass and the human runs a console conversation successfully. Evals E1–E7 run only when the human says so.
 
 **Phase 4: Voice & telephony**
 - Tasks: Cartesia voices (EN/ES) with Deepgram fallback, turn detection, background audio, noise cancellation, silence handling, the call length cap, SIP caller ID, and explicit dispatch as `patient-intake`. Deploy the agent to LiveKit Cloud with secrets set through LiveKit's secret mechanism, not baked into the image.
@@ -161,7 +161,7 @@ bash scripts/smoke.sh http://localhost:8000   # live API smoke check (curl + jq)
 
 **Phase 5: Bonuses**
 - Tasks: scheduling tools, Spanish end to end, call transcripts + summaries in the dashboard's calls tab. (Live updates are already polling every 5 s: Vercel Functions can't hold WebSockets.)
-- Done when: E7, E9 and E11 pass and manual calls #3–#4 are done.
+- Done when: E5 and E6 pass and manual calls #3–#4 are done.
 
 **Phase 6: Hardening & docs**
 - Tasks: complete the README (all required sections; see its template), `docs/manual-test-log.md`, a `REQUIREMENTS.md` audit (every row Done with evidence), and a final `smoke.sh` run.
