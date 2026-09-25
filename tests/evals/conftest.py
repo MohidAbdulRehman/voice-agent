@@ -63,6 +63,7 @@ class Conversation:
     session: AgentSession[CallState]
     agent: IntakeAgent
     services: Services
+    said: list[str] = field(default_factory=list)
     results: list[RunResult] = field(default_factory=list)
 
     @property
@@ -70,9 +71,24 @@ class Conversation:
         return self.session.userdata
 
     async def say(self, text: str) -> RunResult:
+        self.said.append(text)
         result = await self.session.run(user_input=text)
         self.results.append(result)
         return result
+
+    def transcript(self) -> str:
+        """The conversation so far, with every tool call and its result."""
+        lines = []
+        for text, result in zip(self.said, self.results, strict=False):
+            lines.append(f"caller: {text}")
+            for event in result.events:
+                if event.type == "message":
+                    lines.append(f"agent: {event.item.text_content}")
+                elif event.type == "function_call":
+                    lines.append(f"  {event.item.name}({event.item.arguments})")
+                elif event.type == "function_call_output":
+                    lines.append(f"    -> {event.item.output}")
+        return "\n".join(lines)
 
     def calls(self, tool: str) -> list[dict[str, Any]]:
         """The arguments of every call to ``tool`` so far, in order."""
@@ -144,4 +160,6 @@ async def conversation(engine: AsyncEngine, eval_settings: Settings) -> AsyncIte
         history = agent.chat_ctx.copy()
         history.add_message(role="assistant", content=f"{opener} {rest}")
         await agent.update_chat_ctx(history)
-        yield Conversation(session=session, agent=agent, services=services)
+        conversation = Conversation(session=session, agent=agent, services=services)
+        yield conversation
+        print(conversation.transcript())  # pytest shows it when the eval fails
