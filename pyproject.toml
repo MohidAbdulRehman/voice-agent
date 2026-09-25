@@ -21,6 +21,9 @@ dependencies = [
 # uvicorn serves the API locally and in Dockerfile.api; Vercel's runtime brings its
 # own server. The voice agent's packages go in an `agent` extra, for the same reason.
 server = ["uvicorn[standard]>=0.53.0"]
+agent = [
+    "livekit-agents[cartesia,deepgram,groq]~=1.8.2",
+]
 
 [build-system]
 requires = ["uv_build>=0.11.9,<0.12"]
@@ -82,6 +85,8 @@ ban-relative-imports = "all"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "ANN", "D"]
+# Tool docstrings are what the LLM reads; the RunContext parameter isn't an argument it sees.
+"src/intake/agent/tools.py" = ["D417"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
