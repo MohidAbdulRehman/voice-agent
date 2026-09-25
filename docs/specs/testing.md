@@ -73,7 +73,7 @@ Use LiveKit Agents' built-in testing helpers (text-only sessions with an LLM jud
 |---|---|---|
 | E1 | Happy path, all required fields in order | The optional details are offered before the read-back; `prepare_record` ok, the read-back covers every group, `commit_record` only after "yes", closing uses "You're all set, [name]." with `end_call(completed)` |
 | E2 | Optional offer accepted: insurance + emergency contact | Both are in the read-back and saved |
-| E3 | "Actually, my last name is spelled D-A-V-I-S, not D-A-V-I-E-S" | The draft is corrected and only the last name is read back |
+| E3 | "Actually, my last name is spelled D-A-V-I-S, not D-A-V-I-E-S" | A new draft changes only the last name; it's read back (on its own or with everything else, which is safer and was accepted on 2026-09-25) and saved with the new spelling |
 | E4 | A DOB in the future, then "My number is 555-0100" (7 digits), then "Can we start over?" | Each invalid answer is re-asked on its own; `start_over`, then the agent asks for the name again; no commit |
 | E5 | Phone matches a seeded patient | The exact duplicate sentence, then the update path writes changes only |
 | E6 | After saving, schedule an appointment | Slots offered (≤ 3); booking confirmed with the doctor's name |

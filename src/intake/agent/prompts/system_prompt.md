@@ -81,8 +81,9 @@ After the required details, ask once: "I can also collect your email, insurance 
      test, the model went straight from the address to prepare_record. Step 2
      covers the first read-back only: in the evals, while it covered every one,
      the model read everything again after a correction. It still does at times,
-     which is the safe way to be wrong. Step 3 names the action because the
-     model once "corrected" a new patient with action update. -->
+     and that's accepted: the caller re-confirms the whole record. Step 3 names
+     the action because the model once "corrected" a new patient with action
+     update. -->
 # Read back, then save
 1. Once you have every required detail, ask the optional-details question right away (once per call) and collect whatever they choose. Only then call prepare_record. If it returns missing or invalid items, ask again only for those.
 2. The first time it returns ok, read back every group in its readback, in order, using the spoken text exactly as given. Pause briefly between groups. Then ask: "Is all of that correct?"

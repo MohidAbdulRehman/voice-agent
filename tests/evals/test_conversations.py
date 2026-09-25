@@ -121,10 +121,10 @@ async def test_e3_a_spelled_correction_changes_only_the_last_name(
     await conversation.say("Actually, my last name is spelled D-A-V-I-S, not D-A-V-I-E-S.")
 
     assert conversation.calls("prepare_record")[-1]["fields"]["last_name"].casefold() == "davis"
-    await conversation.judge_reply(
+    await conversation.judge_reply(  # reading everything back again is fine (the human's call)
         judge,
-        "Confirms the last name Davis spelled D-A-V-I-S and asks whether that's right, "
-        "without reading back the other details again.",
+        "Reads back the corrected last name, Davis, spelled D-A-V-I-S, and asks whether it's "
+        "right. Reading the other details back again as well is fine.",
     )
     await conversation.say("Yes, that's right.")
     assert statuses(conversation, "commit_record") == ["saved"]
