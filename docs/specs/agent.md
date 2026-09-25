@@ -6,7 +6,7 @@ Python, LiveKit Agents, under `src/intake/agent/`. **Before writing any LiveKit 
 
 - **One `Agent` with a fixed tool list for the whole call.** Adding or removing tools mid-call is not allowed. It's simpler, has fewer failure modes, and is easier to explain. Handoffs are listed as a README "Next Step".
 - **Pipeline:** speech-to-text → LLM → text-to-speech, not a realtime speech-to-speech model. Registration needs exact spellings, and a separate transcriber is easier to inspect and tune.
-- **Tools call `intake.core` services directly**, in-process, and never the REST API. The assessment allows "or directly invoke the same service layer". Live calls therefore don't depend on the Render API being awake.
+- **Tools call `intake.core` services directly**, in-process, and never the REST API. The assessment allows "or directly invoke the same service layer". Live calls therefore don't depend on the API's serverless function, and the agent keeps its own connection pool on Supabase's session pooler (port 5432).
 - **Tools return structured facts, never sentences.** The LLM phrases everything; `core/speech.py` supplies exact spoken forms for the read-back.
 
 ## 2. Session wiring

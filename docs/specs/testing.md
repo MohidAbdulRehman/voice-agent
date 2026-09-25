@@ -88,7 +88,7 @@ Use LiveKit Agents' built-in testing helpers (text-only sessions with an LLM jud
 ## 6. Dashboard: `dashboard/` (light)
 
 - Component smoke test (Vitest) for the patients table rendering the API envelope.
-- Optional Playwright test: open `/dashboard`, insert a row via SQL, and assert it appears without a page reload, which proves the live updates work.
+- Optional Playwright test: open `/dashboard`, insert a row via SQL, and assert it appears within a few seconds without a page reload, which proves the polling works.
 
 ## 7. Manual phone script (the free plan allows 50 inbound minutes/month, so ≤ 4 calls, under 3 minutes each)
 
@@ -102,4 +102,4 @@ After each call, verify via `GET /patients?phone_number=…` and `GET /calls`. C
 
 ## 8. Pre-submission smoke check: `scripts/smoke.sh`
 
-Curls the live API: health, list, create, get, put, delete, and the 400/404/422 cases, with the envelope checked by `jq`. It exits non-zero on any mismatch. Run it against the Render URL right before submitting and again on review day.
+Curls the live API: health, list, create, get, put, delete, and the 400/404/422 cases, with the envelope checked by `jq`. It exits non-zero on any mismatch. Run it against the Vercel URL right before submitting and again on review day. CI also runs it against the Docker image behind a transaction-mode PgBouncer, the same kind of pooler the Vercel deployment uses.

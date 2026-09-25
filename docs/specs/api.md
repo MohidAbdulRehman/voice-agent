@@ -1,6 +1,6 @@
 # REST API contract
 
-FastAPI app at `src/intake/api/`. The same service also serves the dashboard at `/dashboard` and interactive docs at `/docs`. All validation goes through `intake.core`; route handlers contain no business rules.
+FastAPI app at `src/intake/api/`, deployed as one Vercel Function (see Deployment below). It also serves interactive docs at `/docs`; the dashboard lives at `/dashboard` on the same origin. All validation goes through `intake.core`; route handlers contain no business rules.
 
 ## Envelope (every response, including errors)
 
@@ -89,19 +89,20 @@ Soft delete: sets `deleted_at`. The row is never removed. Returns 200 with the r
 | `GET /doctors` | Active doctors with specialty and languages |
 | `GET /dashboard/config` | Public settings for the dashboard banner: `{clinic_name, assistant_name, phone_number, clinic_timezone}` |
 | `GET /health` | `{status, database, version}`. Runs `SELECT 1`, so the uptime pinger also keeps the Supabase free project active. Returns 503 if the database is unreachable. |
-| `WS /ws/changes` | Pushes `{"table": "...", "op": "..."}` whenever the DB notifies. If LISTEN fails (e.g. a pooler limitation), the dashboard falls back to polling every 5 s, and `/health` reports `"live_updates": "polling"`. |
+
+**Live updates are polling, not push.** Vercel Functions can't hold WebSockets or a Postgres `LISTEN` connection, so the dashboard re-reads the list (and the open patient's calls and appointments) every 5 seconds while its tab is visible. That costs at most about 36 requests a minute per open tab, well inside the rate limit.
 
 A call's `caller_number` is carrier metadata the caller never chose to give, so the API masks it to the last four digits (`***-***-0143`). The internal LiveKit room name is never exposed.
 
 ## Dashboard (`/dashboard`)
 
-React + Vite + TypeScript, built into static files that FastAPI serves. It's the same origin as the API, so production needs no CORS.
+React + Vite + TypeScript, built into static files. On Vercel, the build command writes them to `public/dashboard/` and the CDN serves them (with the dashboard's security headers from `vercel.json`); locally and in `Dockerfile.api`, FastAPI serves them from `src/intake/api/static/`. Either way it's the same origin as the API, so production needs no CORS.
 
 Features:
 - A patients table with search boxes that map to the three API filters.
 - A patient detail panel: all fields, call history with summary and expandable transcript, and appointments.
 - A calls tab.
-- A "live" indicator showing the WebSocket state.
+- A "live" indicator showing when the data last refreshed (polling every 5 s), or that the API can't be reached and refreshing is being retried.
 - A header banner with the phone number to call (from `PUBLIC_PHONE_NUMBER`).
 
 The dashboard is **read-only** and unauthenticated, which is a documented limitation. It's responsive, accessible (labels, contrast, keyboard navigation) and hides soft-deleted patients.
@@ -114,4 +115,5 @@ The dashboard is **read-only** and unauthenticated, which is a documented limita
 - **Logging:** one JSON line per request with method, path, status, duration and request id. Request bodies and query strings are not logged; patient payloads are logged only by the agent's registration event. Every response carries the id as `X-Request-ID`.
 - **Caching:** API responses are `Cache-Control: no-store`, since they carry patient data.
 - **No authentication** by design for the review. This is a documented trade-off; next step would be an API key for writes.
-- **Deployment:** `Dockerfile.api` is a multi-stage build (Node builds the dashboard, then the Python runtime). `render.yaml` defines the free web service with `healthCheckPath: /health`.
+- **Deployment:** Vercel's Hobby plan, from `vercel.json`. The API is one Python function (entrypoint `app.py`) in `iad1` (Washington, D.C.), next to Supabase `us-east-1`; it installs only the API dependencies and connects through Supabase's **transaction pooler** (port 6543) with no client-side pool and no reused prepared statements. The build command builds the dashboard into `public/dashboard/` for the CDN. `Dockerfile.api` (a multi-stage build: Node builds the dashboard, then the Python runtime) stays for local and Docker hosting; `docs/alternatives/render.yaml` is an unused Render alternative.
+- **Rate limits on Vercel** are counted per function instance (in memory), so they are best-effort when several instances run at once.

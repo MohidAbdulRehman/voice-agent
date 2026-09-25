@@ -68,7 +68,7 @@ Read the relevant document before coding that area. If code and a spec disagree,
 - **Dashboard:** React + Vite + TypeScript + Tailwind, and Vitest. Playwright is optional.
 - **Infrastructure:**
   - Docker Compose (local `postgres:16`), GitHub Actions CI.
-  - Render (API + dashboard, free web service via `render.yaml` + `Dockerfile.api`).
+  - Vercel Hobby (API as one Python function + dashboard on the CDN, via `vercel.json`; function region `iad1`, next to Supabase `us-east-1`). The API connects through Supabase's transaction pooler (port 6543). `Dockerfile.api` stays for local/Docker use; `docs/alternatives/render.yaml` is the unused Render alternative (it needs a credit card).
   - LiveKit Cloud (agent deployment, per LiveKit docs).
 
 ## Repository layout (target)
@@ -79,8 +79,8 @@ Read the relevant document before coding that area. If code and a spec disagree,
 ├── docker-compose.yml          # local Postgres 16 for dev + tests (host port 5433)
 ├── .github/workflows/ci.yml    # ruff, pytest (Postgres service), gitleaks
 ├── Dockerfile                  # agent image (LiveKit Cloud deploy; confirm expected location in LiveKit docs)
-├── Dockerfile.api              # API + built dashboard (Render)
-├── render.yaml
+├── Dockerfile.api              # API + built dashboard (local/Docker hosting)
+├── app.py  vercel.json         # Vercel entrypoint + config (region, build, bundle excludes, headers)
 ├── db/migrations/0001_init.sql   db/seed.sql   db/docker-init/ (creates intake_test)
 ├── src/intake/
 │   ├── config.py               # Settings (pydantic-settings); single source of env config
@@ -93,7 +93,7 @@ Read the relevant document before coding that area. If code and a spec disagree,
 │   │   ├── repository.py       # async SQL access (parameterized); SIMULATE_DB_FAILURE hook
 │   │   └── services.py         # PatientService, CallService, SchedulingService
 │   ├── db/                     # engine/session, migrate.py, seed.py, check.py
-│   ├── api/                    # main.py, routes/, errors.py (envelope), schemas.py, middleware.py, ratelimit.py, ws.py (LISTEN → WebSocket)
+│   ├── api/                    # main.py, routes/, errors.py (envelope), schemas.py, middleware.py, ratelimit.py
 │   └── agent/
 │       ├── __main__.py         # entrypoint; LiveKit CLI (console/dev/start)
 │       ├── session.py          # STT/LLM/TTS/VAD/turn-detection/background-audio wiring
@@ -102,10 +102,10 @@ Read the relevant document before coding that area. If code and a spec disagree,
 │       ├── lifecycle.py        # calls row, transcript, summary, shutdown handling
 │       ├── scripts.py          # fixed greeting/silence lines (EN/ES)
 │       └── prompts/system_prompt.md  +  loader.py
-├── dashboard/                  # React app; built into src/intake/api/static/ for serving
+├── dashboard/                  # React app; built into src/intake/api/static/ (Docker) or public/dashboard/ (Vercel CDN)
 ├── tests/{unit,db,api,agent,evals}/   # shared DB fixtures: tests/database.py
 ├── scripts/smoke.sh            # live API smoke check
-└── docs/specs/*.md   docs/private/ (gitignored)   docs/manual-test-log.md
+└── docs/specs/*.md   docs/alternatives/   docs/private/ (gitignored)   docs/manual-test-log.md
 ```
 
 ## Commands
@@ -113,7 +113,7 @@ Read the relevant document before coding that area. If code and a spec disagree,
 Adjust these as you build and keep this list accurate.
 
 ```bash
-uv sync                                    # install
+uv sync --all-extras                       # install everything (the API's own dependencies are only the base set; extras: server, agent)
 docker compose up -d db                    # local Postgres 16 on 127.0.0.1:5433 (dbs: intake, intake_test)
 uv run python -m intake.db.check           # prints "ok" if DATABASE_URL connects (never prints the URL)
 uv run python -m intake.db.check --test    # same check for TEST_DATABASE_URL (local Docker)
@@ -129,8 +129,9 @@ uv run python -m intake.agent console      # talk to the agent in the terminal (
 uv run python -m intake.agent dev          # register with LiveKit Cloud (phone/playground)
 cd dashboard && npm install && npm run dev    # dashboard on :5173/dashboard/, proxying API calls to :8000
 cd dashboard && npm test && npm run build     # Vitest; typecheck + build into src/intake/api/static (served at /dashboard)
-docker build --file Dockerfile.api --tag intake-api .   # the Render image: API + built dashboard
-bash scripts/smoke.sh http://localhost:8000   # live API smoke check (curl + jq); run against the Render URL before submitting
+cd dashboard && npm run build:vercel          # what Vercel's build command runs: build into public/dashboard for the CDN
+docker build --file Dockerfile.api --tag intake-api .   # local/Docker image: API + built dashboard
+bash scripts/smoke.sh http://localhost:8000   # live API smoke check (curl + jq); run against the Vercel URL before submitting
 ```
 
 ## Phases (stop after each for human review)
@@ -145,9 +146,9 @@ bash scripts/smoke.sh http://localhost:8000   # live API smoke check (curl + jq)
 - Done when: all pass. Then, **with the human's go-ahead**, apply the migration and seed to Supabase.
 
 **Phase 2: REST API + dashboard shell**
-- Tasks: every endpoint in `api.md`, the envelope/error handlers, rate limiting, sanitization, `/health`, and `scripts/smoke.sh`. Build a basic React dashboard (patients table + detail panel), plus `Dockerfile.api` and `render.yaml`.
+- Tasks: every endpoint in `api.md`, the envelope/error handlers, rate limiting, sanitization, `/health`, and `scripts/smoke.sh`. Build a basic React dashboard (patients table + detail panel), plus `Dockerfile.api` and the Vercel deployment (`app.py` + `vercel.json`).
 - Tests: `testing.md` §3.
-- Done when: all API tests pass and the human deploys to Render and `smoke.sh` passes against the live URL.
+- Done when: all API tests pass and the human deploys to Vercel and `smoke.sh` passes against the live URL.
 
 **Phase 3: Agent, text first**
 - Tasks: `CallState`, the 9 tools, the prompt loader, lifecycle/shutdown handling, and session wiring (verify every API via `livekit-docs`).
@@ -159,7 +160,7 @@ bash scripts/smoke.sh http://localhost:8000   # live API smoke check (curl + jq)
 - Done when: the human completes manual calls #1–#2.
 
 **Phase 5: Bonuses**
-- Tasks: scheduling tools, Spanish end to end, call transcripts + summaries in the dashboard, live updates (LISTEN/NOTIFY → WebSocket, with a polling fallback).
+- Tasks: scheduling tools, Spanish end to end, call transcripts + summaries in the dashboard's calls tab. (Live updates are already polling every 5 s: Vercel Functions can't hold WebSockets.)
 - Done when: E7, E9 and E11 pass and manual calls #3–#4 are done.
 
 **Phase 6: Hardening & docs**

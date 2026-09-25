@@ -91,4 +91,4 @@ For an update, the read-back contains only the changed fields.
 | `appointments` | Booked slots | Two GiST **exclusion constraints**: no overlapping scheduled appointments per doctor, and none per patient |
 | `available_slots()` | SQL function that derives free slots from schedules minus bookings | Slots start ≥ 1 hour from now, in the clinic time zone |
 
-The `notify_change` trigger sends `{"table": ..., "op": ...}` on the `intake_changes` channel. It carries no patient data. The API listens on this channel and pushes updates to the dashboard.
+The `notify_change` trigger sends `{"table": ..., "op": ...}` on the `intake_changes` channel. It carries no patient data. Nothing listens today: the API runs as serverless Vercel Functions, which can't hold a `LISTEN` connection, so the dashboard polls instead (`api.md`). The trigger stays for a future push channel.
