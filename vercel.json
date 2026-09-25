@@ -1,0 +1,28 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["iad1"],
+  "buildCommand": "cd dashboard && npm ci --no-audit --no-fund && npm run build:vercel",
+  "functions": {
+    "app.py": {
+      "excludeFiles": "{src/intake/agent/**,src/intake/api/static/**,tests/**,docs/**,dashboard/**,db/**,scripts/**,Dockerfile.api,docker-compose.yml,*.md}"
+    }
+  },
+  "crons": [{ "path": "/health", "schedule": "0 12 * * *" }],
+  "redirects": [
+    { "source": "/", "destination": "/dashboard/", "permanent": false },
+    { "source": "/dashboard", "destination": "/dashboard/", "permanent": false }
+  ],
+  "headers": [
+    {
+      "source": "/dashboard/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    }
+  ]
+}

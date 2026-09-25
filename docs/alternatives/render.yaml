@@ -1,3 +1,7 @@
+# NOT USED. An alternative to the Vercel deployment (vercel.json), kept for reference.
+# Render's free web services need a credit card on the account, so the API moved to
+# Vercel's Hobby plan. To use it, move this file to the repository root.
+#
 # Render Blueprint: the REST API and the dashboard as one free Docker web service.
 # Spec: https://render.com/docs/blueprint-spec
 #
