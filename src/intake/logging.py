@@ -1,9 +1,10 @@
-"""structlog JSON logging to stdout, shared by the API and the agent.
+"""structlog logging: JSON lines to stdout for the API, LiveKit's handlers for the agent.
 
-Every line is one JSON object with ``event``, ``level``, ``logger``, a UTC ISO 8601
-``timestamp`` and any context bound with ``structlog.contextvars`` (such as
-``call_id``). Standard-library records (uvicorn, SQLAlchemy, LiveKit) are rendered
-the same way, so one parser reads every line.
+For the API, every line is one JSON object with ``event``, ``level``, ``logger``, a
+UTC ISO 8601 ``timestamp`` and any context bound with ``structlog.contextvars``.
+Standard-library records (uvicorn, SQLAlchemy) are rendered the same way, so one
+parser reads every line. The agent's events carry the same fields (``call_id``
+included), printed by LiveKit's command line, which already owns its output.
 """
 
 import logging
@@ -48,3 +49,19 @@ def configure_logging(level: str = "INFO") -> None:
     # The API logs each request itself, without the query string (it can hold patient
     # data); uvicorn's access log would print it.
     logging.getLogger("uvicorn.access").disabled = True
+
+
+def configure_agent_logging() -> None:
+    """Send structlog events into standard logging, for LiveKit's own handlers to print.
+
+    LiveKit's command line owns the agent's output: JSON lines in production and
+    colored text in dev and console mode, at its ``--log-level``. Each event name
+    becomes the record's message, and the bound fields (``call_id`` and the rest)
+    become extra fields, which both formats print.
+    """
+    structlog.configure(
+        processors=[structlog.contextvars.merge_contextvars, structlog.stdlib.render_to_log_kwargs],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=False,
+    )
