@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Phone voice agent that registers new patients, with a REST API and a live dashboard."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
+# What the REST API and the core layer import: exactly what the Vercel Function
+# bundles. Vercel installs with `uv sync --no-dev`, which never installs extras.
 dependencies = [
     "asyncpg>=0.31.0",
     "email-validator>=2.3.0",
@@ -13,8 +15,12 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.54",
     "structlog>=26.1.0",
     "tzdata>=2026.4",
-    "uvicorn[standard]>=0.53.0",
 ]
+
+[project.optional-dependencies]
+# uvicorn serves the API locally and in Dockerfile.api; Vercel's runtime brings its
+# own server. The voice agent's packages go in an `agent` extra, for the same reason.
+server = ["uvicorn[standard]>=0.53.0"]
 
 [build-system]
 requires = ["uv_build>=0.11.9,<0.12"]

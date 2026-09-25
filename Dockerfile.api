@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
-# The REST API with the built dashboard, as one image for Render (render.yaml).
+# The REST API with the built dashboard, as one image for local or Docker hosting.
+# (The public deployment is Vercel: see vercel.json.)
 #   docker build --file Dockerfile.api --tag intake-api .
 #   docker run --env DATABASE_URL=... --publish 8000:8000 intake-api
 
@@ -21,11 +22,11 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 # Dependencies first, so a code change doesn't reinstall them.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --no-dev --no-install-project
+RUN uv sync --locked --no-dev --extra server --no-install-project
 COPY README.md ./
 COPY src/ src/
 COPY --from=dashboard /build/src/intake/api/static src/intake/api/static
-RUN uv sync --locked --no-dev && python -m compileall -q src
+RUN uv sync --locked --no-dev --extra server && python -m compileall -q src
 
 # --- 3. Runtime: Python, the virtualenv and the code, without build tools -------
 FROM python:3.12-slim
@@ -33,12 +34,12 @@ RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin app
 COPY --from=app /app /app
 WORKDIR /app
 USER app
-# Render's proxy is the only way in, and it puts the caller's address first in
-# X-Forwarded-For, which is the entry uvicorn uses when every proxy is trusted.
-# The rate limiter then keys on each caller instead of on the proxy.
+# Behind a reverse proxy that puts the caller's address first in X-Forwarded-For,
+# trusting it lets the rate limiter key on each caller instead of on the proxy.
+# Set FORWARDED_ALLOW_IPS to the proxy's address when it isn't the only way in.
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     FORWARDED_ALLOW_IPS="*"
 EXPOSE 8000
-# Render sets PORT. The API logs each request itself, without query strings.
+# Hosts like Render set PORT. The API logs each request itself, without query strings.
 CMD ["sh", "-c", "exec uvicorn intake.api.main:app --host 0.0.0.0 --port ${PORT:-8000} --no-access-log"]
