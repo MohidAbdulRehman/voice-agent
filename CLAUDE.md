@@ -126,6 +126,7 @@ uv run pytest                              # unit + db + api + agent tool tests 
 uv run pytest -m evals                     # LLM-judged conversation evals: ASK FIRST (uses credits; prints tokens + cost)
 uv run uvicorn intake.api.main:app --reload   # API on :8000, docs at /docs (uses DATABASE_URL; see the local-DB note above)
 uv run python -m intake.agent console      # talk to the agent in the terminal (no phone minutes); --text to type
+                                           # --record saves both voices to console-recordings/ (git-ignored)
                                            # (LiveKit notes these commands moved to `lk agent`, which expects src/agent.py)
 uv run python -m intake.agent dev          # register with LiveKit Cloud (phone/playground)
 cd dashboard && npm install && npm run dev    # dashboard on :5173/dashboard/, proxying API calls to :8000

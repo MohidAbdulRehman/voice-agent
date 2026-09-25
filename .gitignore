@@ -35,5 +35,6 @@ Thumbs.db
 
 # --- Local recordings / scratch ---
 recordings/
+console-recordings/
 *.wav
 *.log

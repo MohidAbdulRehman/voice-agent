@@ -26,6 +26,7 @@ Python, LiveKit Agents, under `src/intake/agent/`. **Before writing any LiveKit 
 | Silence | After about 12 s of caller silence, say "Are you still there?". After a second silence, say a polite goodbye and call `end_call(no_response)`. |
 | Call length cap | At `MAX_CALL_MINUTES` (default 12), the agent wraps up politely: it finishes if confirmed, otherwise it says staff will follow up. This protects the free minutes. |
 | Metrics | Log LLM, STT and TTS latency metrics per turn (debug level), plus a per-call summary line (info). |
+| Recording | For listening back to calls. `session.start` leaves `record` unset, so the LiveKit Cloud project's **Agent observability** setting (Settings → Data and privacy) decides: when it's on, each call's audio (caller and agent), transcript, traces and logs are uploaded after the call to the **Agent insights** tab of the Sessions page, for playback or download; LiveKit deletes them after 30 days. In console mode, `--record` saves `console-recordings/session-<time>/audio.ogg` (stereo: caller left, agent right) and `session_report.json` locally; that folder is git-ignored. |
 
 ## 3. Session state (`userdata`)
 

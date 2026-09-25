@@ -67,7 +67,7 @@ TODO: verify these steps from a clean clone.
 3. `docker compose up -d db && uv sync --all-extras` (the extras are the local server and the agent; the API itself needs only the base set)
 4. `uv run python -m intake.db.migrate && uv run python -m intake.db.seed`
 5. `uv run uvicorn intake.api.main:app --reload`
-6. `uv run python -m intake.agent console` to talk to the agent in your terminal.
+6. `uv run python -m intake.agent console` to talk to the agent in your terminal. Add `--record` to save the conversation's audio (caller left, agent right) under `console-recordings/`.
 
 ## Deployment
 

@@ -207,6 +207,8 @@ async def entrypoint(ctx: JobContext) -> None:
         caller_number=caller_number,
     )
     deps = AgentDeps(services=services, settings=settings, switch_voice=voices.switch)
+    # No `record` argument: the LiveKit Cloud project's Agent observability setting decides
+    # whether the call's audio and transcript are recorded (console mode: `--record`).
     await session.start(
         agent=IntakeAgent(instructions=prompt, deps=deps),
         room=ctx.room,
