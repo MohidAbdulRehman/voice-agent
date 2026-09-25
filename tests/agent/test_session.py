@@ -10,9 +10,12 @@ from uuid import uuid4
 
 import pytest
 from livekit import rtc
-from livekit.agents import llm, tts
+from livekit.agents import BackgroundAudioPlayer, llm, tts
+from livekit.agents.voice.room_io.types import NoiseCancellationParams
+from livekit.plugins import noise_cancellation
 
 from intake.agent import scripts
+from intake.agent import session as session_module
 from intake.agent.session import (
     _caller,
     build_llm,
@@ -21,6 +24,9 @@ from intake.agent.session import (
     export_livekit_env,
     greet,
     limit_call_length,
+    office_sounds,
+    play_office_sounds,
+    reduce_noise,
     watch_silence,
 )
 from intake.agent.state import CallState
@@ -187,6 +193,74 @@ async def test_the_channel_and_caller_number_come_from_the_participant(
     job: FakeJob, expected: tuple[str, str | None]
 ):
     assert await _caller(job) == expected
+
+
+@pytest.mark.parametrize(
+    ("participant", "expected"),
+    [
+        (sip(), noise_cancellation.BVCTelephony()),
+        (
+            SimpleNamespace(kind=rtc.ParticipantKind.PARTICIPANT_KIND_STANDARD),
+            noise_cancellation.NC(),  # free, unlike the telephony model
+        ),
+    ],
+)
+def test_phone_callers_get_the_telephony_noise_model(
+    participant: SimpleNamespace, expected: rtc.NoiseCancellationOptions
+):
+    assert reduce_noise(NoiseCancellationParams(participant=participant, track=None)) == expected
+
+
+@dataclass
+class FakeAmbience:
+    """A background audio player that starts, or fails to."""
+
+    fails: bool = False
+    started_in: list[tuple[Any, Any]] = field(default_factory=list)
+
+    async def start(self, *, room: Any, agent_session: Any) -> None:
+        if self.fails:
+            raise RuntimeError("the track couldn't be published")
+        self.started_in.append((room, agent_session))
+
+    async def aclose(self) -> None:
+        return None
+
+
+@dataclass
+class FakeCallJob:
+    """The parts of JobContext that background audio uses."""
+
+    room: object = field(default_factory=object)
+    on_shutdown: list[Callable[[], Any]] = field(default_factory=list)
+
+    def add_shutdown_callback(self, callback: Callable[[], Any]) -> None:
+        self.on_shutdown.append(callback)
+
+
+async def test_office_sounds_play_in_the_call_room_until_it_ends(monkeypatch: pytest.MonkeyPatch):
+    ambience, job, session = FakeAmbience(), FakeCallJob(), fake_session()
+    monkeypatch.setattr(session_module, "office_sounds", lambda: ambience)
+
+    await play_office_sounds(job, session)
+
+    assert ambience.started_in == [(job.room, session)]
+    assert job.on_shutdown == [ambience.aclose]
+
+
+async def test_a_call_goes_on_without_office_sounds_that_fail_to_start(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    job = FakeCallJob()
+    monkeypatch.setattr(session_module, "office_sounds", lambda: FakeAmbience(fails=True))
+
+    await play_office_sounds(job, fake_session())  # no exception reaches the call
+
+    assert job.on_shutdown == []
+
+
+async def test_the_office_sounds_are_built_in_clips():  # the player needs a running loop
+    assert isinstance(office_sounds(), BackgroundAudioPlayer)
 
 
 async def test_the_voice_pipeline_builds_from_settings(monkeypatch: pytest.MonkeyPatch):

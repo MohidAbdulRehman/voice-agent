@@ -2,8 +2,9 @@
 
 Speech-to-text is Deepgram; the LLM is LiveKit Inference with Groq as a fallback;
 the voice is Cartesia with Deepgram as a fallback. Voice activity and end-of-turn
-detection are LiveKit's built-in models. Class and parameter names follow LiveKit
-Agents 1.8, checked against its docs and source.
+detection are LiveKit's built-in models, and LiveKit Cloud's Krisp models clean up
+the caller's audio. Class and parameter names follow LiveKit Agents 1.8, checked
+against its docs and source.
 """
 
 import asyncio
@@ -18,6 +19,9 @@ from livekit import rtc
 from livekit.agents import (
     AgentServer,
     AgentSession,
+    AudioConfig,
+    BackgroundAudioPlayer,
+    BuiltinAudioClip,
     ConversationItemAddedEvent,
     JobContext,
     STTContextOptions,
@@ -29,7 +33,8 @@ from livekit.agents import (
     stt,
     tts,
 )
-from livekit.plugins import cartesia, deepgram, groq
+from livekit.agents.voice.room_io.types import NoiseCancellationParams
+from livekit.plugins import cartesia, deepgram, groq, noise_cancellation
 from pydantic import SecretStr
 
 from intake.agent import scripts
@@ -55,6 +60,8 @@ WRAP_UP_GRACE_SECONDS = 60.0  # after the time-limit wrap-up, the call ends even
 # LiveKit gives a new worker process 10 s to start by default; loading its local models
 # took 16 s on a development laptop, so the first attempt timed out.
 PROCESS_START_SECONDS = 60.0
+OFFICE_VOLUME = 0.4  # a quiet front-desk murmur under the whole call
+TYPING_VOLUME = 0.7  # keys clacking while the agent thinks or a tool runs, instead of dead air
 # Per-turn latencies (seconds) logged at debug level, from each message's metrics.
 TURN_LATENCIES = (
     "transcription_delay",
@@ -130,6 +137,29 @@ def build_voices(settings: Settings) -> Voices:
             backup.update_options(model=backup_voice)
 
     return Voices(tts=adapter, switch=switch)
+
+
+def reduce_noise(params: NoiseCancellationParams) -> rtc.NoiseCancellationOptions:
+    """Krisp's telephony model for phone callers; plain noise suppression for anyone else.
+
+    The telephony model also mutes other voices in the room. It's metered (the free
+    plan includes 100 minutes a month, twice the 50 inbound phone minutes); plain
+    noise suppression is free.
+    """
+    if params.participant.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+        return noise_cancellation.BVCTelephony()
+    return noise_cancellation.NC()
+
+
+def office_sounds() -> BackgroundAudioPlayer:
+    """Quiet office ambience for the whole call, and typing while the agent is thinking."""
+    return BackgroundAudioPlayer(
+        ambient_sound=AudioConfig(BuiltinAudioClip.OFFICE_AMBIENCE, volume=OFFICE_VOLUME),
+        thinking_sound=[
+            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING, volume=TYPING_VOLUME),
+            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING2, volume=TYPING_VOLUME),
+        ],
+    )
 
 
 def summarizer(model: llm.LLM) -> Summarizer:
@@ -212,10 +242,15 @@ async def entrypoint(ctx: JobContext) -> None:
     await session.start(
         agent=IntakeAgent(instructions=prompt, deps=deps),
         room=ctx.room,
-        # Closing the session (end_call, silence) deletes the room, which hangs up the phone.
-        room_options=room_io.RoomOptions(delete_room_on_close=True),
+        room_options=room_io.RoomOptions(
+            audio_input=room_io.AudioInputOptions(noise_cancellation=reduce_noise),
+            # Closing the session (end_call, silence) deletes the room, which hangs up the phone.
+            delete_room_on_close=True,
+        ),
     )
     greet(session, settings)
+    if not console:  # background audio plays into a room; console mode has none
+        await play_office_sounds(ctx, session)
 
 
 def watch_silence(
@@ -263,6 +298,17 @@ async def limit_call_length(
     session.generate_reply(instructions=scripts.TIME_LIMIT)
     await asyncio.sleep(grace_seconds)
     session.shutdown(drain=True)
+
+
+async def play_office_sounds(ctx: JobContext, session: AgentSession[CallState]) -> None:
+    """Start the background sounds; if they fail to start, the call goes on without them."""
+    ambience = office_sounds()
+    try:
+        await ambience.start(room=ctx.room, agent_session=session)
+    except Exception:
+        log.warning("call.background_audio_failed", exc_info=True)
+        return
+    ctx.add_shutdown_callback(ambience.aclose)
 
 
 def greet(session: AgentSession[CallState], settings: Settings) -> None:

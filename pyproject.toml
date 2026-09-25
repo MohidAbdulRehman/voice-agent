@@ -23,6 +23,7 @@ dependencies = [
 server = ["uvicorn[standard]>=0.53.0"]
 agent = [
     "livekit-agents[cartesia,deepgram,groq]~=1.8.2",
+    "livekit-plugins-noise-cancellation~=0.3",
 ]
 
 [build-system]
