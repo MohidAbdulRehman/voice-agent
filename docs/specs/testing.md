@@ -85,6 +85,8 @@ Left out to save credits, and covered elsewhere:
 - **A "no" at the read-back:** the tool tests cover stale drafts.
 - **Details given out of order:** manual call #2.
 
+**Latest full run (2026-09-25):** 6 of 7 passed. E3's only failure was that the agent read back every detail after a correction. That was accepted as safer, since the caller re-confirms the whole record, and E3 now allows it. Two evals were changed after that run: E3 now accepts the full re-read, and E5 now starts with an incomplete number. To save credit, they weren't run again (the human's call, 2026-09-28).
+
 ## 6. Dashboard: `dashboard/` (light)
 
 - Component smoke test (Vitest) for the patients table rendering the API envelope.
