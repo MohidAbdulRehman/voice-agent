@@ -102,11 +102,11 @@ After deploying, check the live API: `bash scripts/smoke.sh https://<project>.ve
 
 LiveKit Cloud builds `Dockerfile` itself, and CI builds the same image on every push. The image holds no secrets: they're set with the LiveKit CLI and injected when the agent starts. LiveKit Cloud provides `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` on its own.
 
-1. **Deploy**, from the repo root: `lk cloud auth`, then `lk agent create --region us-east --secrets-file=.env`. The first deploy writes `livekit.toml`. After that, `lk agent deploy` ships a new version. `lk agent status` and `lk agent logs` show how it's doing.
+1. **Deploy**, from the repo root: `lk cloud auth`, then `lk agent create --region us-east --secrets-file=.env --ignore-empty-secrets`. Without that last flag, the CLI stops at any key left blank in `.env`. The first deploy writes `livekit.toml`. After that, `lk agent deploy` ships a new version. `lk agent status` and `lk agent logs` show how it's doing.
 2. **Secrets the agent uses:**
    - Required: `DATABASE_URL` (Supabase's **session pooler**, port 5432), `DEEPGRAM_API_KEY`, `CARTESIA_API_KEY` and `GROQ_API_KEY`.
    - Optional: the voice IDs `CARTESIA_VOICE_EN`/`_ES` and `DEEPGRAM_TTS_VOICE_EN`/`_ES`.
-   - `lk agent update-secrets` changes them. The agent ignores any other keys in `.env`.
+   - After editing `.env`, `lk agent update-secrets --secrets-file=.env --ignore-empty-secrets` uploads the changes and restarts the agent. The agent ignores any other keys in `.env`.
 3. **Phone number:** Telephony → Phone Numbers → **Rent a number** (one US number is free). Then Telephony → Dispatch rules → **Create new dispatch rule** → JSON editor:
    ```json
    {
@@ -116,9 +116,9 @@ LiveKit Cloud builds `Dockerfile` itself, and CI builds the same image on every 
    }
    ```
    Assign the rule to the number: Phone Numbers → ⋮ → Assign dispatch rule.
-4. **Recordings:** turn on Settings → Data and privacy → **Agent observability**. Each call's audio and transcript then appear under Sessions → the call → **Agent insights** for 30 days.
+4. **Recordings:** turn on Settings → Data and privacy → **Agent observability**. Each call's audio (both voices, to play or download) and transcript then appear under Sessions → the call → **Agent insights** for 30 days. They're uploaded when the call ends. To listen while a call is live, open its session and select **Observe in Console**.
 
-On the free plan the agent scales to zero when idle, so the first call after a quiet spell waits 10–20 seconds while it starts. Before a demo, warm it up with a short session in the LiveKit Cloud Agent Console, which uses no phone minutes.
+On the free plan the agent scales to zero when idle, so the first call after a quiet spell waits 10–20 seconds while it starts. Before a demo, warm it up with a short session in the Agent Console (Agents → the agent → **Launch Console**), which uses no phone minutes.
 
 ## Environment variables
 

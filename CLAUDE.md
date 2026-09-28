@@ -133,7 +133,8 @@ cd dashboard && npm install && npm run dev    # dashboard on :5173/dashboard/, p
 cd dashboard && npm test && npm run build     # Vitest; typecheck + build into src/intake/api/static (served at /dashboard; Vercel's build runs it too)
 docker build --file Dockerfile.api --tag intake-api .   # local/Docker image: API + built dashboard
 docker build --tag intake-agent .             # the agent image LiveKit Cloud builds (CI builds it on every push)
-lk agent create --region us-east --secrets-file=.env   # first deploy to LiveKit Cloud; the human runs it (after `lk cloud auth`)
+lk agent create --region us-east --secrets-file=.env --ignore-empty-secrets   # first deploy to LiveKit Cloud; the human runs it (after `lk cloud auth`)
+lk agent update-secrets --secrets-file=.env --ignore-empty-secrets            # after editing .env; restarts the agent
 lk agent deploy                               # ship a new agent version; `lk agent status`, `lk agent logs`
 bash scripts/smoke.sh http://localhost:8000   # live API smoke check (curl + jq); run against the Vercel URL before submitting
 ```
