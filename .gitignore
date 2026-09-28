@@ -38,3 +38,6 @@ recordings/
 console-recordings/
 *.wav
 *.log
+
+# The assessment brief is confidential: never commit or ship a PDF.
+*.pdf

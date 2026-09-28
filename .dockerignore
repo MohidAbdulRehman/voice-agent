@@ -18,3 +18,6 @@ tests/
 recordings/
 *.log
 *.wav
+
+# The assessment brief is confidential: keep PDFs out of the image.
+*.pdf
