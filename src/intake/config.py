@@ -66,7 +66,6 @@ class Settings(BaseSettings):
     clinic_timezone: str = "America/New_York"
     max_call_minutes: PositiveInt = 12
     api_cors_origins: str = "http://localhost:5173"
-    public_api_base_url: str = "http://localhost:8000"
     log_level: LogLevel = "INFO"
     simulate_db_failure: bool = False
 
