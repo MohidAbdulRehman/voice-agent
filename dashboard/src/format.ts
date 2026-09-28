@@ -1,4 +1,4 @@
-import type { CallStatus } from "./types";
+import type { CallStatus, Channel } from "./types";
 
 /** "(512) 555-0100" for a stored 10-digit number; anything else as given. */
 export function formatPhone(digits: string): string {
@@ -48,4 +48,40 @@ const CALL_STATUS_LABELS: Record<CallStatus, string> = {
 
 export function callStatusLabel(status: CallStatus): string {
   return CALL_STATUS_LABELS[status];
+}
+
+/** How long a call lasted, e.g. "3 min 12 s", or null if it hasn't ended. */
+export function formatDuration(startedAt: string, endedAt: string | null): string | null {
+  if (!endedAt) {
+    return null;
+  }
+  const seconds = Math.max(0, Math.round((Date.parse(endedAt) - Date.parse(startedAt)) / 1000));
+  const minutes = Math.floor(seconds / 60);
+  return minutes > 0 ? `${minutes} min ${seconds % 60} s` : `${seconds} s`;
+}
+
+const CHANNEL_LABELS: Record<Channel, string> = {
+  phone: "Phone",
+  web: "Web",
+  console: "Console",
+};
+
+export function channelLabel(channel: Channel): string {
+  return CHANNEL_LABELS[channel];
+}
+
+// The reasons the agent records (src/intake/agent: end_call, the time limit, a hang-up).
+const END_REASON_LABELS: Record<string, string> = {
+  completed: "Finished normally",
+  caller_request: "The caller asked to stop",
+  no_response: "The caller stopped answering",
+  emergency: "Emergency: told to call 911",
+  out_of_scope: "Not something the assistant handles",
+  time_limit: "Reached the call time limit",
+  disconnected: "The caller hung up",
+};
+
+/** Why a call ended, for people; an unknown reason is shown as recorded. */
+export function endReasonLabel(reason: string): string {
+  return END_REASON_LABELS[reason] ?? reason.replaceAll("_", " ");
 }

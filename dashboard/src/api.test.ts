@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, searchQuery, unwrap, type Envelope } from "./api";
+import { ApiError, callsQuery, searchQuery, unwrap, type Envelope } from "./api";
 
 describe("unwrap", () => {
   it("returns the data of a success envelope", () => {
@@ -44,5 +44,15 @@ describe("searchQuery", () => {
 
   it("is empty without filters", () => {
     expect(searchQuery({ last_name: "", date_of_birth: " ", phone_number: "" })).toBe("");
+  });
+});
+
+describe("callsQuery", () => {
+  it("asks for the newest calls of every status", () => {
+    expect(callsQuery("")).toBe("?limit=50");
+  });
+
+  it("adds the chosen status", () => {
+    expect(callsQuery("abandoned")).toBe("?limit=50&status=abandoned");
   });
 });

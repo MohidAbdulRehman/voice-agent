@@ -90,7 +90,7 @@ Soft delete: sets `deleted_at`. The row is never removed. Returns 200 with the r
 | `GET /dashboard/config` | Public settings for the dashboard banner: `{clinic_name, assistant_name, phone_number, clinic_timezone}` |
 | `GET /health` | `{status, database, version}`. Runs `SELECT 1`, so the uptime pinger also keeps the Supabase free project active. Returns 503 if the database is unreachable. |
 
-**Live updates are polling, not push.** Vercel Functions can't hold WebSockets or a Postgres `LISTEN` connection, so the dashboard re-reads the list (and the open patient's calls and appointments) every 5 seconds while its tab is visible. That costs at most about 36 requests a minute per open tab, well inside the rate limit.
+**Live updates are polling, not push.** Vercel Functions can't hold WebSockets or a Postgres `LISTEN` connection, so the dashboard re-reads what's on screen every 5 seconds while its browser tab is visible. That's the open tab's list, plus the open patient's calls and appointments or the open call's transcript. It costs at most about 36 requests a minute per open browser tab, well inside the rate limit.
 
 A call's `caller_number` is carrier metadata the caller never chose to give, so the API masks it to the last four digits (`***-***-0143`). The internal LiveKit room name is never exposed.
 
@@ -101,7 +101,7 @@ React + Vite + TypeScript, built into static files in `src/intake/api/static/`, 
 Features:
 - A patients table with search boxes that map to the three API filters.
 - A patient detail panel: all fields, call history with summary and expandable transcript, and appointments.
-- A calls tab.
+- A calls tab (`/dashboard/#calls`) listing the newest 50 calls, with a status filter. Each row shows when the call started, its status, length, channel and masked caller ID. Selecting a call shows why it ended, its patient, summary and transcript. Only the open tab is rendered, so only its data is polled.
 - A "live" indicator showing when the data last refreshed (polling every 5 s), or that the API can't be reached and refreshing is being retried.
 - A header banner with the phone number to call (from `PUBLIC_PHONE_NUMBER`).
 

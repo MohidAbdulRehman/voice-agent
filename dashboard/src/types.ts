@@ -39,9 +39,12 @@ export interface TranscriptEntry {
   at: string;
 }
 
-export interface Call {
+export type Channel = "phone" | "web" | "console";
+
+/** A call as GET /calls lists it, without its transcript. */
+export interface CallSummary {
   call_id: string;
-  channel: "phone" | "web" | "console";
+  channel: Channel;
   caller_number: string | null;
   status: CallStatus;
   language: string;
@@ -50,6 +53,10 @@ export interface Call {
   end_reason: string | null;
   started_at: string;
   ended_at: string | null;
+}
+
+/** A call with its transcript (GET /calls/{id} and GET /patients/{id}/calls). */
+export interface Call extends CallSummary {
   final_payload: Record<string, unknown> | null;
   transcript: TranscriptEntry[];
 }

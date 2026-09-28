@@ -1,8 +1,9 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { api } from "../api";
-import { callStatusLabel, formatDateTime, formatPhone } from "../format";
-import type { Appointment, Call, CallStatus, Patient } from "../types";
+import { formatDateTime, formatPhone } from "../format";
+import type { Appointment, Call, Patient } from "../types";
 import { useApi, type Loadable } from "../useApi";
+import { CallStatusBadge, Transcript } from "./CallParts";
 
 interface PatientDetailProps {
   patient: Patient;
@@ -16,7 +17,7 @@ export function PatientDetail({ patient, timeZone, refresh }: PatientDetailProps
   const heading = useRef<HTMLHeadingElement>(null);
   // Move focus to the chosen patient, which also scrolls the panel into view on phones.
   useEffect(() => heading.current?.focus(), [id]);
-  const calls = useApi((signal) => api.calls(id, signal), `calls:${id}`, refresh);
+  const calls = useApi((signal) => api.patientCalls(id, signal), `calls:${id}`, refresh);
   const appointments = useApi(
     (signal) => api.appointments(id, signal),
     `appointments:${id}`,
@@ -113,22 +114,11 @@ function Loaded<T>({
   return <ul className="space-y-3">{children(result.data)}</ul>;
 }
 
-const STATUS_STYLES: Record<CallStatus, string> = {
-  in_progress: "bg-indigo-100 text-indigo-900",
-  registered: "bg-green-100 text-green-900",
-  updated: "bg-sky-100 text-sky-900",
-  no_action: "bg-slate-100 text-slate-800",
-  abandoned: "bg-amber-100 text-amber-900",
-  failed: "bg-red-100 text-red-900",
-};
-
 function CallItem({ call, timeZone }: { call: Call; timeZone: string }) {
   return (
     <li className="rounded-md border border-slate-200 p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <span className={`rounded px-2 py-0.5 text-xs font-semibold ${STATUS_STYLES[call.status]}`}>
-          {callStatusLabel(call.status)}
-        </span>
+        <CallStatusBadge status={call.status} />
         <span className="text-slate-700">{formatDateTime(call.started_at, timeZone)}</span>
         <span className="text-slate-600">
           {call.language}, {call.channel}
@@ -140,16 +130,7 @@ function CallItem({ call, timeZone }: { call: Call; timeZone: string }) {
           <summary className="cursor-pointer font-medium text-teal-800 focus-visible:outline-2 focus-visible:outline-teal-700">
             Transcript ({call.transcript.length} turns)
           </summary>
-          <ol className="mt-2 space-y-1">
-            {call.transcript.map((turn, index) => (
-              <li key={index}>
-                <span className="font-semibold">
-                  {turn.role === "assistant" ? "Assistant" : "Caller"}:
-                </span>{" "}
-                {turn.text}
-              </li>
-            ))}
-          </ol>
+          <Transcript turns={call.transcript} />
         </details>
       ) : null}
     </li>

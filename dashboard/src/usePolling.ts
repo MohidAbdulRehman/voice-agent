@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 
+/** How often the dashboard reloads what it shows. */
+export const POLL_MS = 5000;
+
 /**
  * A counter that goes up every `intervalMs` while the page is visible, to reload
  * data on a schedule. It pauses in a background tab and ticks as soon as the

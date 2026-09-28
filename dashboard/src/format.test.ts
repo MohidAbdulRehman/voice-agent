@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   callStatusLabel,
+  channelLabel,
+  endReasonLabel,
   formatClock,
   formatDateTime,
   formatDialNumber,
+  formatDuration,
   formatPhone,
 } from "./format";
 
@@ -57,5 +60,41 @@ describe("callStatusLabel", () => {
   it("names each status for people", () => {
     expect(callStatusLabel("no_action")).toBe("No action");
     expect(callStatusLabel("in_progress")).toBe("In progress");
+  });
+});
+
+describe("formatDuration", () => {
+  it("gives minutes and seconds, rounded to the second", () => {
+    expect(formatDuration("2026-09-24T16:00:00.000000Z", "2026-09-24T16:03:12.400000Z")).toBe(
+      "3 min 12 s",
+    );
+  });
+
+  it("gives seconds alone under a minute", () => {
+    expect(formatDuration("2026-09-24T16:00:00.000000Z", "2026-09-24T16:00:45.000000Z")).toBe(
+      "45 s",
+    );
+  });
+
+  it("is null for a call that hasn't ended", () => {
+    expect(formatDuration("2026-09-24T16:00:00.000000Z", null)).toBeNull();
+  });
+});
+
+describe("channelLabel", () => {
+  it("names each channel for people", () => {
+    expect(channelLabel("phone")).toBe("Phone");
+    expect(channelLabel("console")).toBe("Console");
+  });
+});
+
+describe("endReasonLabel", () => {
+  it("explains the reasons the agent records", () => {
+    expect(endReasonLabel("completed")).toBe("Finished normally");
+    expect(endReasonLabel("disconnected")).toBe("The caller hung up");
+  });
+
+  it("shows an unknown reason as recorded, without underscores", () => {
+    expect(endReasonLabel("line_dropped")).toBe("line dropped");
   });
 });

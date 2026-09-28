@@ -12,7 +12,7 @@ A voice AI agent you can phone to register as a new patient. It collects US pati
 |---|---|
 | 📞 **Call** | **TODO: +1 (XXX) XXX-XXXX** |
 | 🌐 **API base URL** | **https://riverside-intake.vercel.app** (interactive docs at `/docs`) |
-| 📊 **Dashboard** | **https://riverside-intake.vercel.app/dashboard/** |
+| 📊 **Dashboard** | **https://riverside-intake.vercel.app/dashboard/** (patients), **[/dashboard/#calls](https://riverside-intake.vercel.app/dashboard/#calls)** (every call with its summary and transcript) |
 
 **Things to try on a call:**
 - Register normally.

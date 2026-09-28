@@ -1,4 +1,15 @@
-import type { Appointment, Call, DashboardConfig, Patient, PatientSearch } from "./types";
+import type {
+  Appointment,
+  Call,
+  CallStatus,
+  CallSummary,
+  DashboardConfig,
+  Patient,
+  PatientSearch,
+} from "./types";
+
+/** How many of the newest calls the calls tab lists. */
+export const CALLS_SHOWN = 50;
 
 export interface FieldError {
   field: string | null;
@@ -55,6 +66,15 @@ export function searchQuery(search: PatientSearch): string {
   return query ? `?${query}` : "";
 }
 
+/** The query string for GET /calls: the newest calls, of one status if one is chosen. */
+export function callsQuery(status: CallStatus | ""): string {
+  const params = new URLSearchParams({ limit: String(CALLS_SHOWN) });
+  if (status) {
+    params.set("status", status);
+  }
+  return `?${params.toString()}`;
+}
+
 async function get<T>(path: string, signal: AbortSignal): Promise<T> {
   let response: Response;
   let body: Envelope<T>;
@@ -74,8 +94,13 @@ export const api = {
   config: (signal: AbortSignal) => get<DashboardConfig>("/dashboard/config", signal),
   patients: (search: PatientSearch, signal: AbortSignal) =>
     get<Patient[]>(`/patients${searchQuery(search)}`, signal),
-  calls: (patientId: string, signal: AbortSignal) =>
+  patient: (patientId: string, signal: AbortSignal) =>
+    get<Patient>(`/patients/${patientId}`, signal),
+  patientCalls: (patientId: string, signal: AbortSignal) =>
     get<Call[]>(`/patients/${patientId}/calls`, signal),
   appointments: (patientId: string, signal: AbortSignal) =>
     get<Appointment[]>(`/patients/${patientId}/appointments`, signal),
+  calls: (status: CallStatus | "", signal: AbortSignal) =>
+    get<CallSummary[]>(`/calls${callsQuery(status)}`, signal),
+  call: (callId: string, signal: AbortSignal) => get<Call>(`/calls/${callId}`, signal),
 };
