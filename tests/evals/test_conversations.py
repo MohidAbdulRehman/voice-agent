@@ -161,8 +161,10 @@ async def test_e4_invalid_answers_are_asked_again_then_the_caller_starts_over(
 async def test_e5_a_known_number_leads_to_an_update(conversation: Conversation, judge: llm.LLM):
     before = await conversation.services.patients.get(AVERY)
     await conversation.say("Hi, this is Avery Collins.")
-    await conversation.say("My number is 212-555-0143.")
+    await conversation.say("My number is 555-0143.")  # incomplete; the right one comes next
+    await conversation.say("Sorry, it's 212-555-0143.")
 
+    assert "found" in statuses(conversation, "lookup_patient_by_phone")
     await conversation.judge_reply(
         judge,
         "Says: 'It looks like we already have a record for Avery Collins. Would you like to "

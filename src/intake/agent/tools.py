@@ -111,7 +111,8 @@ class IntakeAgent(Agent):
     ) -> Facts:
         """Check whether this phone number already belongs to a registered patient.
 
-        Call it as soon as the caller gives their phone number.
+        Call it every time the caller gives a phone number, retries included. It also
+        says whether the number is a valid US number.
 
         Args:
             phone_number: The number the caller gave, in any format, e.g. 512-555-0100.

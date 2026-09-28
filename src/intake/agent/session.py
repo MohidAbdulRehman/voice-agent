@@ -53,7 +53,9 @@ from intake.logging import configure_agent_logging
 log = structlog.stdlib.get_logger("intake.agent")
 
 TEMPERATURE = 0.3
-KEYTERMS = ("Decline to Answer",)  # plus the clinic's name
+# Plus the clinic's name. The sex options are one-word answers that are easy to mishear
+# ("male" came out as "meat" in a console test).
+KEYTERMS = ("Decline to Answer", "Male", "Female")
 SIP_CALLER_NUMBER = "sip.phoneNumber"  # participant attribute set by LiveKit telephony
 SILENCE_SECONDS = 12.0  # caller silence before "Are you still there?", and again before goodbye
 WRAP_UP_GRACE_SECONDS = 60.0  # after the time-limit wrap-up, the call ends even if the LLM hasn't

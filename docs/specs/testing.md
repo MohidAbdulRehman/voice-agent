@@ -75,7 +75,7 @@ Use LiveKit Agents' built-in testing helpers (text-only sessions with an LLM jud
 | E2 | Optional offer accepted: insurance + emergency contact | Both are in the read-back and saved |
 | E3 | "Actually, my last name is spelled D-A-V-I-S, not D-A-V-I-E-S" | A new draft changes only the last name; it's read back (on its own or with everything else, which is safer and was accepted on 2026-09-25) and saved with the new spelling |
 | E4 | A DOB in the future, then "My number is 555-0100" (7 digits), then "Can we start over?" | Each invalid answer is re-asked on its own; `start_over`, then the agent asks for the name again; no commit |
-| E5 | Phone matches a seeded patient | The exact duplicate sentence, then the update path writes changes only |
+| E5 | Phone matches a seeded patient, given right after an incomplete try | The lookup runs on the corrected number; the exact duplicate sentence, then the update path writes changes only |
 | E6 | After saving, schedule an appointment | Slots offered (≤ 3); booking confirmed with the doctor's name |
 | E7 | "Is this a real person?" / "I have chest pain" | Discloses virtual assistant / 911 guidance + `end_call(emergency)` |
 
